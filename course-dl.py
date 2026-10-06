@@ -53,7 +53,18 @@ def sha256_file(path):
 
 
 class Fetcher:
-    def __init__(self, cookie_jar=None, extra_headers=None):
+    def __init__(self, cookie_jar=None, extra_headers=None, platform=None):
+        """platform: when set, credentials come from the segmented store
+        (creds.Broker) instead of a raw cookie file — the Muse-authd pattern:
+        the pipeline never touches credential material, the broker attaches
+        it at the network boundary. Legacy --cookies still works."""
+        self.broker = None
+        if platform:
+            import creds
+            self.broker = creds.Broker(platform)
+            self.cookies = ""
+            self.extra = extra_headers or {}
+            return
         self.cookies = ""
         if cookie_jar and os.path.exists(cookie_jar):
             # Netscape cookie jar -> Cookie header (good enough for one domain)
@@ -68,6 +79,8 @@ class Fetcher:
         self.extra = extra_headers or {}
 
     def headers(self, referer=None):
+        # Note: in broker mode (platform creds), get() routes through
+        # broker.get() — credentials never pass through this method.
         h = {"User-Agent": UA, "Accept": "*/*"}
         if self.cookies:
             h["Cookie"] = self.cookies
@@ -77,6 +90,8 @@ class Fetcher:
         return h
 
     def get(self, url, referer=None, binary=False, timeout=60):
+        if self.broker is not None and self.broker.has_credentials:
+            return self.broker.get(url, referer=referer, timeout=timeout, binary=binary)
         req = urllib.request.Request(url, headers=self.headers(referer))
         with urllib.request.urlopen(req, timeout=timeout) as r:
             data = r.read()
@@ -151,6 +166,10 @@ class Crawler:
         rec = {"kind": kind, "url": url, "file": os.path.abspath(path),
                "sha256": sha256_file(path), "tool": tool, "size": os.path.getsize(path),
                "acquired_at": time.strftime("%Y-%m-%dT%H:%M:%S%z")}
+        # Muse-pattern provenance: identity only, never credential material
+        broker = getattr(self.fx, "broker", None)
+        if broker is not None and broker.has_credentials:
+            rec["credential"] = broker.identity()
         if note:
             rec["note"] = note
         self.records.append(rec)
@@ -191,6 +210,13 @@ class Crawler:
         # referer is required or the manifest 403s
         if "skool.com" in url or "skool.com" in (referer or ""):
             cmd += ["--referer", "https://www.skool.com"]
+        # Muse-pattern boundary: if a broker is attached, hand yt-dlp the
+        # segmented slot file — never a copy, never an inline cookie value
+        broker = getattr(self.fx, "broker", None)
+        if broker is not None and broker.has_credentials:
+            jar = broker.cookie_file_arg()
+            if jar:
+                cmd += ["--cookies", jar]
         r = subprocess.run(cmd, capture_output=True, text=True, timeout=7200)
         got = re.findall(r"Merging formats into \"(.+?)\"", r.stdout) or \
               re.findall(r"\[download\] Destination: (.+)", r.stdout) or \
@@ -259,7 +285,9 @@ def main():
     ap = argparse.ArgumentParser(description="Whole-course downloader (all modules, all content types)")
     ap.add_argument("url", help="course root URL (logged-in session required for gated platforms)")
     ap.add_argument("--out-dir", default="./course-dl")
-    ap.add_argument("--cookies", default=None, help="Netscape cookie jar export for the course domain")
+    ap.add_argument("--cookies", default=None, help="Netscape cookie jar export for the course domain (legacy)")
+    ap.add_argument("--platform", default=None,
+                    help="use segmented credentials from the store (creds.py init/import) — e.g. --platform skool")
     ap.add_argument("--header", action="append", default=[], help="extra header, e.g. --header 'Cookie: k=1' (repeatable)")
     ap.add_argument("--max-pages", type=int, default=200)
     ap.add_argument("--venv-python", default=os.environ.get(
@@ -271,7 +299,7 @@ def main():
         if ":" in h:
             k, v = h.split(":", 1)
             headers[k.strip()] = v.strip()
-    fx = Fetcher(a.cookies, headers)
+    fx = Fetcher(a.cookies, headers, platform=a.platform)
     os.makedirs(a.out_dir, exist_ok=True)
     Crawler(a.url, a.out_dir, fx, a.max_pages, a.venv_python).crawl()
     print(json.dumps({"ok": True, "out_dir": os.path.abspath(a.out_dir),

@@ -56,3 +56,18 @@
   classroom cards — without login.
 - md= harvest + referer handling: in-course (needs a member session to
   exercise end-to-end).
+## Credential handling (the segmented store)
+
+Never paste cookies into the command line. Use the store:
+
+```bash
+python3 creds.py init skool                    # create the 0700 slot
+python3 creds.py import skool cookies.txt      # move your jar in (0600, source removed)
+python3 creds.py verify skool                  # counts + freshness — never values
+python3 course-dl.py "https://www.skool.com/YOUR-COMMUNITY/classroom" \
+    --platform skool --out-dir ./my-course      # broker attaches creds at the boundary
+```
+
+The pipeline never touches credential material: creds.Broker is the only code
+that reads the store, cookies attach inside the network boundary, and the
+acquisition manifest records only the identity (`platform:skool`).
