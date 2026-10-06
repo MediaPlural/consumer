@@ -307,6 +307,33 @@ def test_ocr_and_watch():
     check("ocr engine available", os.path.exists(helper) or shutil.which("tesseract") is not None)
 
 
+
+
+def test_zero_and_connectors():
+    print("zero-in + connectors (live)")
+    import tempfile
+    tmp = tempfile.mkdtemp()
+    db = os.path.join(tmp, "z.db")
+    # clipboard lane: set real clipboard text
+    subprocess.run(["bash", "-c", 'printf "Zero in test: the funnel machine decides the next move." | pbcopy'],
+                   capture_output=True, text=True, timeout=30)
+    r = subprocess.run([PY, os.path.join(HERE, "zero.py"), "clip", "--db", db, "--label", "t"],
+                       capture_output=True, text=True, timeout=300)
+    check("zero clip consumes", r.returncode == 0 and json.loads(r.stdout)["chars"] > 10,
+          r.stderr[-150:])
+    r2 = subprocess.run([PY, os.path.join(HERE, "graph.py"), "search", "funnel",
+                        "--db", db, "--limit", "1"], capture_output=True, text=True, timeout=60)
+    ok = r2.returncode == 0 and r2.stdout.strip() and json.loads(r2.stdout)
+    check("zero'd text searchable", bool(ok), r2.stderr[-120:])
+    # connectors CLI shape + list
+    r3 = subprocess.run([PY, os.path.join(HERE, "connectors.py"), "list"],
+                       capture_output=True, text=True, timeout=60)
+    check("connectors list", r3.returncode == 0 and "gmail" in r3.stdout)
+    # ortie invocation shape (token show --account) — no token needed for the check
+    src = open(os.path.join(HERE, "connectors.py")).read()
+    check("ortie token show shape", '"token", "show", "--account"' in src)
+
+
 def main():
     test_cli_shapes()
     test_srt_and_fingerprint()
@@ -320,6 +347,7 @@ def main():
     test_attribution_flow()
     test_responsive_ui_served()
     test_ocr_and_watch()
+    test_zero_and_connectors()
     print(f"\n{PASS} passed, {FAIL} failed")
     sys.exit(1 if FAIL else 0)
 

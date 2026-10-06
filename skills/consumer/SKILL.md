@@ -73,6 +73,8 @@ websites, zips, gdrive, folders, any knowledge material.
 | trial | `trial.py` | honest trial lifecycle |
 | creds | `creds.py` | segmented credential store (Muse pattern) |
 | refine | `refine.py` | clean/organize/match: dedup chunks + morphological concept merge |
+| **zero-in** | `zero.py` | consume EXACTLY what's on screen: region/window/fullscreen/clipboard -> OCR -> graph |
+| connectors | `connectors.py` | app archives via real auth: gmail (ortie OAuth), imap (app password) |
 | export | `export.py` | ALWAYS-LEAVE law: json/jsonl/csv/md/sqlite/package (INGEST.md convention) |
 | api | `api.py` | graph over HTTP: /search /semantic /hybrid /filter /insight /maths /export |
 | sync | `sync.py` | merge/import-jsonl/import-package — syncable anywhere |
@@ -105,6 +107,27 @@ python3 source.py ~/my-course --workspace ./ws --full --db g.db
 `--full` chains ingest + graph automatically. GDrive: public files work;
 private folders → use Drive's "Download as ZIP".
 
+
+
+## Zero-in + app connectors (agent-native triggers)
+
+```bash
+# zero-in — the Foxy-select/Omnisight trigger: consume exactly what's visible
+python3 zero.py --region   --db g.db          # drag a box
+python3 zero.py --window   --db g.db          # click a window
+python3 zero.py --fullscreen --db g.db         # everything
+python3 zero.py --clip      --db g.db --label "note"   # clipboard
+
+# app connectors — "consume my email archive" with real auth
+python3 connectors.py list
+python3 connectors.py auth gmail                        # one-time OAuth (ortie)
+python3 connectors.py export gmail --since 2026-01-01 --limit 500 --db g.db
+python3 connectors.py export imap --host imap.gmail.com --user you@gmail.com --db g.db
+#   IMAP password: env CONSUMER_IMAP_PASS or keychain (security add-generic-password -s consumer-imap)
+```
+
+Credential law unchanged: tokens live in ortie (never in commands/logs);
+IMAP passwords in env/keychain, never argv.
 
 ## Interop — always able to leave (the always-leave law)
 
