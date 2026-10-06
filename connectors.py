@@ -39,6 +39,27 @@ def log(msg):
 
 # ----------------------------------------------------------------- ortie lane
 
+def nango_token(connection_id, nango_url=None, nango_key=None):
+    """Access token from a SELF-HOSTED Nango instance (open source — you own
+    custody). Never a SaaS token: the consumer's integration law is local
+    custody; Nango is adopted as optional prebuilt-OAuth plumbing for the
+    long tail of apps we won't hand-wire. URL from env or --nango-url; the
+    secret key lives in env CONSUMER_NANGO_KEY (never argv)."""
+    url = nango_url or os.environ.get("CONSUMER_NANGO_URL")
+    key = nango_key or os.environ.get("CONSUMER_NANGO_KEY")
+    if not url or not key:
+        return None
+    req = urllib.request.Request(
+        f"{url.rstrip('/')}/connection/{connection_id}",
+        headers={"Authorization": f"Bearer {key}"})
+    try:
+        with urllib.request.urlopen(req, timeout=60) as r:
+            d = json.loads(r.read())
+        return (d.get("credentials") or {}).get("access_token")
+    except Exception:
+        return None
+
+
 def ortie_token(account):
     """Fresh access token from ortie (refresh if needed). Never logged."""
     r = subprocess.run(["ortie", "token", "show", "--account", account],
@@ -196,9 +217,77 @@ def imap_export(host, user, out_dir, db, limit, folder):
                           "messages": n, "out_dir": os.path.abspath(out_dir)}, indent=2))
 
 
+
+
+def drive_export(account, out_dir, db, limit, query):
+    """Google Drive files (docs/sheets/pdfs) via ortie google account (or
+    Nango connection 'google-drive'). Lists files matching query, downloads
+    each (export mime for docs), drops them in out_dir with attribution."""
+    tok = ortie_token(account) or nango_token("google-drive")
+    if not tok:
+        sys.exit("FATAL: no google token — run ortie configure with Drive scopes, "
+                 "or set CONSUMER_NANGO_URL/KEY for a Nango google-drive connection")
+    os.makedirs(out_dir, exist_ok=True)
+    q = urllib.request.quote(query)
+    url = (f"https://www.googleapis.com/drive/v3/files?q={q}"
+           f"&pageSize={min(limit or 100, 1000)}&fields=files(id,name,mimeType,size)")
+    req = urllib.request.Request(url, headers={"Authorization": f"Bearer {tok}"})
+    try:
+        with urllib.request.urlopen(req, timeout=60) as r:
+            d = json.loads(r.read())
+    except urllib.error.HTTPError as e:
+        if e.code in (401, 403):
+            sys.exit("FATAL: token lacks Drive scope — the ortie account needs "
+                     "googleapis.com/auth/drive.readonly (re-run ortie configure "
+                     "with Drive scopes) or use a Nango google-drive connection")
+        raise
+    files = d.get("files", [])[:limit] if limit else d.get("files", [])
+    log(f"{len(files)} drive files")
+    manifest = []
+    for i, f in enumerate(files):
+        if f.get("mimeType") in ("application/vnd.google-apps.document",):
+            export = "text/plain"
+        elif f.get("mimeType") == "application/vnd.google-apps.spreadsheet":
+            export = "text/csv"
+        else:
+            export = None
+        try:
+            if export:
+                u = f"https://www.googleapis.com/drive/v3/files/{f['id']}/export?exportFormat={urllib.request.quote(export)}"
+            else:
+                u = f"https://www.googleapis.com/drive/v3/files/{f['id']}?alt=media"
+            req = urllib.request.Request(u, headers={"Authorization": f"Bearer {tok}"})
+            with urllib.request.urlopen(req, timeout=120) as r:
+                data = r.read()
+            safe = "".join(c if c.isalnum() or c in "._ -" else "_" for c in f["name"])[:80]
+            path = os.path.join(out_dir, f"{i:04d}-{safe}.bin")
+            with open(path, "wb") as fh:
+                fh.write(data)
+            manifest.append({"kind": "drive-file", "url": f"https://drive.google.com/file/d/{f['id']}/view",
+                             "file": path, "sha256": "0" * 64, "tool": f"drive:{account}",
+                             "size": len(data), "acquired_at": time.strftime("%Y-%m-%dT%H:%M:%S%z")})
+        except Exception as e:
+            log(f"skip {f.get('name')}: {e}")
+    with open(os.path.join(out_dir, "acquisition.json"), "w") as fh:
+        json.dump({"sources": manifest}, fh)
+    log(f"downloaded {len(manifest)} files")
+    if db and manifest:
+        r = subprocess.run(["python3", os.path.join(HERE, "ingest.py"), out_dir, "--recursive"],
+                           capture_output=True, text=True, timeout=3600)
+        r2 = subprocess.run(["python3", os.path.join(HERE, "graph.py"), "ingest",
+                             os.path.join(out_dir, "extracted"), "--db", db],
+                            capture_output=True, text=True, timeout=3600)
+        print(json.dumps({"ok": True, "connector": "drive", "files": len(manifest),
+                          "graph": json.loads(r2.stdout) if r2.returncode == 0 else None}, indent=2))
+    else:
+        print(json.dumps({"ok": True, "connector": "drive", "files": len(manifest),
+                          "out_dir": os.path.abspath(out_dir)}, indent=2))
+
+
 CONNECTORS = {
-    "gmail": {"auth": "ortie (OAuth; Gmail API)", "export": "messages since date -> graph"},
+    "gmail": {"auth": "ortie (OAuth; Gmail API) or Nango", "export": "messages since date -> graph"},
     "imap": {"auth": "app password (env/keychain)", "export": "any IMAP mailbox -> graph"},
+    "drive": {"auth": "ortie google account or Nango google-drive", "export": "docs/sheets/pdfs -> graph"},
 }
 
 
@@ -208,6 +297,7 @@ def main():
     sub.add_parser("list")
     p = sub.add_parser("auth"); p.add_argument("connector", choices=list(CONNECTORS))
     p = sub.add_parser("export"); p.add_argument("connector", choices=list(CONNECTORS))
+    p.add_argument("--query", default="trashed = false", help="drive: files.list query")
     p.add_argument("--account", default="adhacks", help="ortie account (gmail)")
     p.add_argument("--since", default=None, help="YYYY-MM-DD")
     p.add_argument("--limit", type=int, default=None)
@@ -232,6 +322,8 @@ def main():
         out = a.out or "./mail-archive"
         if a.connector == "gmail":
             gmail_export(a.account, a.since, out, a.db, a.limit)
+        elif a.connector == "drive":
+            drive_export(a.account, out, a.db, a.limit, a.query)
         elif a.connector == "imap":
             if not a.user:
                 sys.exit("FATAL: imap needs --user you@example.com")

@@ -334,6 +334,24 @@ def test_zero_and_connectors():
     check("ortie token show shape", '"token", "show", "--account"' in src)
 
 
+
+
+def test_nango_and_drive():
+    print("nango lane + drive connector (unit)")
+    sys.path.insert(0, HERE)
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("con", os.path.join(HERE, "connectors.py"))
+    con = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(con)
+    check("nango unconfigured -> None", con.nango_token("x") is None)
+    check("nango bad url -> None", con.nango_token("x", nango_url="http://127.0.0.1:1", nango_key="k") is None)
+    src = open(os.path.join(HERE, "connectors.py")).read()
+    check("drive scope error message", "drive.readonly" in src)
+    check("three connectors registered", all(c in con.CONNECTORS for c in ("gmail", "imap", "drive")))
+    import os as _os
+    check("INTEGRATIONS.md exists", _os.path.exists(os.path.join(HERE, "INTEGRATIONS.md")))
+
+
 def main():
     test_cli_shapes()
     test_srt_and_fingerprint()
@@ -348,6 +366,7 @@ def main():
     test_responsive_ui_served()
     test_ocr_and_watch()
     test_zero_and_connectors()
+    test_nango_and_drive()
     print(f"\n{PASS} passed, {FAIL} failed")
     sys.exit(1 if FAIL else 0)
 
