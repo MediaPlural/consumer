@@ -42,6 +42,10 @@ upstream: MediaPlural/consumer
 
 # Consumer — the knowledge consumer / engine of enlightenment
 
+Lore name: **Bradán** (the Salmon of Knowledge — eats everything, becomes
+wisdom). The graph is **Segais** (the Well of Wisdom). A share package is a
+**gest** — a tale carried; drop it into any agent and it in·gests.
+
 One engine, every runtime. This SKILL.md speaks the AgentSkills dialect
 (Hermes, Claude Code, OpenClaw, Cursor) and is carried by runtime adapters
 below for non-AgentSkills runtimes (VS Code/Copilot via MCP, any MCP client).
