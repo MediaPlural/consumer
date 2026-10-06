@@ -188,6 +188,48 @@ def test_graph_and_source():
         check("insight query", r3.returncode == 0 and "bridge_concepts" in r3.stdout, r3.stderr[-150:])
 
 
+
+
+def test_export_sync():
+    print("export + sync (live round-trip)")
+    import tempfile
+    tmp = tempfile.mkdtemp()
+    db = os.path.join(tmp, "g.db")
+    # build a graph
+    dist = os.path.join(tmp, "corpus")
+    os.makedirs(dist, exist_ok=True)
+    open(os.path.join(dist, "a.txt"), "w").write(
+        "The funnel machine decides the next move for every lead. " * 10)
+    r = subprocess.run([PY, os.path.join(HERE, "graph.py"), "ingest", dist, "--db", db],
+                       capture_output=True, text=True, timeout=120)
+    check("graph build", r.returncode == 0, r.stderr[-200:])
+    # export all key formats
+    r2 = subprocess.run([PY, os.path.join(HERE, "export.py"), db, "--format", "jsonl",
+                         "--out", os.path.join(tmp, "c.jsonl")],
+                        capture_output=True, text=True, timeout=120)
+    check("export jsonl", r2.returncode == 0 and json.loads(r2.stdout)["lines"] >= 1, r2.stderr[-150:])
+    r3 = subprocess.run([PY, os.path.join(HERE, "export.py"), db, "--format", "package",
+                         "--outdir", os.path.join(tmp, "pkg"), "--title", "T"],
+                        capture_output=True, text=True, timeout=120)
+    check("export package", r3.returncode == 0 and
+          os.path.exists(os.path.join(tmp, "pkg", "INGEST.md")), r3.stderr[-150:])
+    # import package into fresh db
+    fresh = os.path.join(tmp, "fresh.db")
+    r4 = subprocess.run([PY, os.path.join(HERE, "sync.py"), "import-package",
+                         os.path.join(tmp, "pkg"), "--db", fresh],
+                        capture_output=True, text=True, timeout=120)
+    check("import-package", r4.returncode == 0, r4.stderr[-200:])
+    # merge original into fresh -> dedup means chunks don't double
+    r5 = subprocess.run([PY, os.path.join(HERE, "sync.py"), "merge", fresh, db,
+                          "--out", os.path.join(tmp, "m.db")],
+                        capture_output=True, text=True, timeout=120)
+    if r5.returncode == 0:
+        after = json.loads(r5.stdout)["after"]["chunks"]
+        check("merge dedup", after == json.loads(r.stdout)["chunks"], f"after={after}")
+    else:
+        check("merge dedup", False, r5.stderr[-150:])
+
+
 def main():
     test_cli_shapes()
     test_srt_and_fingerprint()
@@ -197,6 +239,7 @@ def main():
     test_course_dl_skool()
     test_author_and_explain()
     test_graph_and_source()
+    test_export_sync()
     print(f"\n{PASS} passed, {FAIL} failed")
     sys.exit(1 if FAIL else 0)
 

@@ -72,6 +72,10 @@ websites, zips, gdrive, folders, any knowledge material.
 | insights | `insights.js` | "{Agent} Insights" one-tap panel |
 | trial | `trial.py` | honest trial lifecycle |
 | creds | `creds.py` | segmented credential store (Muse pattern) |
+| refine | `refine.py` | clean/organize/match: dedup chunks + morphological concept merge |
+| export | `export.py` | ALWAYS-LEAVE law: json/jsonl/csv/md/sqlite/package (INGEST.md convention) |
+| api | `api.py` | graph over HTTP: /search /semantic /hybrid /filter /insight /maths /export |
+| sync | `sync.py` | merge/import-jsonl/import-package — syncable anywhere |
 
 ## The graph (graph.py) — the discovery engine
 
@@ -100,6 +104,26 @@ python3 source.py ~/my-course --workspace ./ws --full --db g.db
 ```
 `--full` chains ingest + graph automatically. GDrive: public files work;
 private folders → use Drive's "Download as ZIP".
+
+
+## Interop — always able to leave (the always-leave law)
+
+The user is never locked in. Everything assimilated exports and syncs freely:
+
+```bash
+python3 export.py g.db --format package --outdir share/ --title "T"  # INGEST.md manifest + fingerprint
+python3 export.py g.db --format jsonl --out chunks.jsonl            # RAG/vector-db feed
+python3 export.py g.db --format csv --outdir csv/                    # spreadsheets/SQL/BI
+python3 export.py g.db --format sqlite --out copy.db                # standalone db copy
+python3 api.py --db g.db --port 8765                                # HTTP: any tool, any language
+python3 refine.py g.db [--apply]                                    # clean/organize/match
+python3 sync.py import-package share/ --db other.db                 # bring a package in
+python3 sync.py merge left.db right.db --out merged.db              # union with dedup
+```
+
+Box-to-box: export package on A → move the dir (scp/gdrive/usb) →
+import-package on B. Live: api.py on A, any HTTP client on B. Cross-graph
+cosine works without shipping models (deterministic hashed vectors).
 
 ## Setup
 
