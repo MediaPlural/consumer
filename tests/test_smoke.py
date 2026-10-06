@@ -293,8 +293,17 @@ def test_ocr_and_watch():
     # ocr.py CLI shape
     r3 = subprocess.run([PY, os.path.join(HERE, "ocr.py"), "--help"], capture_output=True, text=True, timeout=60)
     check("ocr.py --help", r3.returncode == 0)
-    # ocr helper present (macOS vision) or tesseract — engine detectable
+    # ocr helper present (macOS vision) or tesseract — engine detectable.
+    # ensure_helper() compiles on demand: a fresh clone builds it on first
+    # use, so the test asks ocr.py to build rather than assuming a prior run.
     helper = os.path.expanduser("~/.consumer/bin/consumer-ocr")
+    if not os.path.exists(helper) and not shutil.which("tesseract"):
+        sys.path.insert(0, HERE)
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("ocrmod", os.path.join(HERE, "ocr.py"))
+        ocrmod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(ocrmod)
+        ocrmod.ensure_helper()
     check("ocr engine available", os.path.exists(helper) or shutil.which("tesseract") is not None)
 
 
