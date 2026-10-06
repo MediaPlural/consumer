@@ -117,7 +117,8 @@ def chunk_text(text):
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS sources(
   id INTEGER PRIMARY KEY, name TEXT, kind TEXT, path TEXT,
-  sha256 TEXT, meta_json TEXT);
+  sha256 TEXT, meta_json TEXT, url TEXT, credential TEXT,
+  acquired_at TEXT, acquire_tool TEXT);
 CREATE TABLE IF NOT EXISTS chunks(
   id INTEGER PRIMARY KEY, source_id INTEGER, idx INTEGER,
   text TEXT, words INTEGER, vector_json TEXT, meta_json TEXT);
@@ -152,7 +153,9 @@ def connect(db_path):
 # ------------------------------------------------------------------ ingest
 
 def load_corpus(corpus_dir):
-    """corpus.json (from ingest.py) + extracted .txt files."""
+    """corpus.json (from ingest.py) + extracted .txt files. Attribution
+    (url/credential/acquired_at/tool) flows from corpus.json entries into
+    the graph's source rows — natural inbuilt provenance."""
     entries = []
     cj = os.path.join(corpus_dir, "corpus.json")
     if os.path.exists(cj):
@@ -161,7 +164,12 @@ def load_corpus(corpus_dir):
                 entries.append({"name": e.get("rel") or os.path.basename(e["file"]),
                                 "kind": e.get("kind", "text"),
                                 "path": e["file"], "sha256": e.get("sha256"),
-                                "text_path": e["extracted_to"]})
+                                "text_path": e["extracted_to"],
+                                "url": e.get("url"),
+                                "credential": e.get("credential"),
+                                "acquired_at": e.get("acquired_at"),
+                                "tool": e.get("tool"),
+                                "source_size": e.get("size")})
     else:
         # bare dir of .txt/.md (transcripts, notes) — graph them too
         for f in sorted(os.listdir(corpus_dir)):
@@ -170,6 +178,19 @@ def load_corpus(corpus_dir):
                 entries.append({"name": f, "kind": "text", "path": p,
                                 "sha256": None, "text_path": p})
     return entries
+
+
+def purge_source(db, has_fts, sid):
+    """Remove a source and everything it contributed (chunks, fts rows,
+    chunk-concept edges). Concepts stay (shared); links/bridges rebuilt after."""
+    cids = [r[0] for r in db.execute("SELECT id FROM chunks WHERE source_id=?", (sid,))]
+    if cids:
+        marks = ",".join("?" * len(cids))
+        db.execute(f"DELETE FROM chunk_concepts WHERE chunk_id IN ({marks})", cids)
+        if has_fts:
+            db.execute(f"DELETE FROM chunks_fts WHERE rowid IN ({marks})", cids)
+        db.execute(f"DELETE FROM chunks WHERE id IN ({marks})", cids)
+    db.execute("DELETE FROM sources WHERE id=?", (sid,))
 
 
 def ingest(db_path, corpus_dir, distilled_dir=None):
@@ -184,15 +205,39 @@ def ingest(db_path, corpus_dir, distilled_dir=None):
         for c in json.load(open(os.path.join(distilled_dir, "concepts.json"))).get("concepts", []):
             concepts[c["phrase"].lower()] = c["phrase"]
 
-    src_count, chunk_count = 0, 0
+    # IDEMPOTENCY (the re-point law): a source ingests once; pointing at the
+    # same material twice must never duplicate it. Same name + same sha256 =
+    # skip (unchanged). Same name + different sha = purge + re-add (changed).
+    existing = {r[0]: (r[1], r[2]) for r in
+                db.execute("SELECT name, id, sha256 FROM sources")}
+    src_count, chunk_count, skipped = 0, 0, 0
     for e in entries:
         text = open(e["text_path"], errors="replace").read()
         if not text.strip():
             continue
-        cur = db.execute("INSERT INTO sources(name,kind,path,sha256,meta_json) VALUES(?,?,?,?,?)",
-                         (e["name"], e["kind"], e["path"], e.get("sha256"),
-                          json.dumps({"text_path": e["text_path"]})))
+        name, sha = e["name"], e.get("sha256")
+        if name in existing:
+            old_sid, old_sha = existing[name]
+            if sha and old_sha and sha == old_sha:
+                skipped += 1
+                continue
+            purge_source(db, has_fts, old_sid)
+        elif sha:
+            # content-addressed: if the same sha exists under another name
+            # (a re-export with a different filename), still skip the dupe
+            dupe = db.execute("SELECT id FROM sources WHERE sha256=? AND kind=?",
+                              (sha, e.get("kind", "text"))).fetchone()
+            if dupe:
+                skipped += 1
+                continue
+        cur = db.execute("INSERT INTO sources(name,kind,path,sha256,meta_json,url,credential,acquired_at,acquire_tool) "
+                         "VALUES(?,?,?,?,?,?,?,?,?)",
+                         (name, e["kind"], e["path"], sha,
+                          json.dumps({"text_path": e["text_path"]}),
+                          e.get("url"), e.get("credential"),
+                          e.get("acquired_at"), e.get("tool")))
         sid = cur.lastrowid
+        existing[name] = (sid, sha)
         src_count += 1
         for i, chunk in enumerate(chunk_text(text)):
             vec = embed(chunk)
@@ -216,6 +261,7 @@ def ingest(db_path, corpus_dir, distilled_dir=None):
     db.commit()
     build_links(db)
     print(json.dumps({"ok": True, "sources": src_count, "chunks": chunk_count,
+                      "skipped": skipped,
                       "concepts": db.execute("SELECT count(*) FROM concepts").fetchone()[0],
                       "fts5": has_fts, "db": os.path.abspath(db_path)}, indent=2))
     db.close()
@@ -247,6 +293,14 @@ def build_links(db):
 
 # ------------------------------------------------------------------ queries
 
+
+def _attribution(db):
+    """id -> attribution dict for result rows. Natural inbuilt provenance:
+    every query result carries where the knowledge came from."""
+    return {r[0]: {"url": r[1], "credential": r[2], "acquired_at": r[3], "tool": r[4], "sha256": r[5]}
+            for r in db.execute("SELECT id, url, credential, acquired_at, acquire_tool, sha256 FROM sources")}
+
+
 def q_search(db, has_fts, query, limit):
     if has_fts:
         try:
@@ -260,14 +314,24 @@ def q_search(db, has_fts, query, limit):
                 WHERE chunks_fts MATCH ?
                 ORDER BY rank LIMIT ?""",
                 (query, limit)).fetchall()
-            return [{"chunk": r[0], "source": r[1], "text": r[2], "fts_rank": round(r[3], 3)} for r in rows]
+            att = _attribution(db)
+            # rows already carry source ids via join; map attribution cleanly
+            sid_of = dict(db.execute("SELECT id, source_id FROM chunks").fetchall())
+            return [{"chunk": r[0], "source": r[1],
+                     "attribution": att.get(sid_of.get(r[0])),
+                     "text": r[2], "fts_rank": round(r[3], 3)} for r in rows]
         except sqlite3.OperationalError:
             pass
     like = f"%{query}%"
-    rows = db.execute("""SELECT c.id, s.name, substr(c.text,1,240) FROM chunks c
+    rows = db.execute("""SELECT c.id, s.name, s.id, substr(c.text,1,240),
+                                 s.url, s.credential, s.acquired_at, s.acquire_tool, s.sha256
+                         FROM chunks c
                          JOIN sources s ON s.id=c.source_id
                          WHERE c.text LIKE ? LIMIT ?""", (like, limit)).fetchall()
-    return [{"chunk": r[0], "source": r[1], "text": r[2], "fts_rank": None} for r in rows]
+    return [{"chunk": r[0], "source": r[1],
+             "attribution": {"source_id": r[2], "url": r[4], "credential": r[5],
+                             "acquired_at": r[6], "tool": r[7], "sha256": r[8]},
+             "text": r[3], "fts_rank": None} for r in rows]
 
 
 def q_semantic(db, query, limit):
@@ -280,7 +344,9 @@ def q_semantic(db, query, limit):
     out.sort(reverse=True)
     out = out[:limit]
     srcs = dict(db.execute("SELECT id, name FROM sources").fetchall())
+    att = _attribution(db)
     return [{"chunk": c, "source": srcs.get(s), "similarity": round(sc, 3),
+             "attribution": att.get(s),
              "text": t[:240]} for sc, c, s, t in out]
 
 
@@ -289,6 +355,7 @@ def q_hybrid(db, has_fts, query, limit):
     fts = {r["chunk"]: r for r in q_search(db, has_fts, query, limit * 3)}
     ids = list(dict.fromkeys(list(sem) + list(fts)))
     srcs = dict(db.execute("SELECT id, name FROM sources").fetchall())
+    att = _attribution(db)
     rows = db.execute("SELECT id, source_id, text FROM chunks").fetchall()
     texts = {r[0]: (r[1], r[2]) for r in rows}
     out = []
@@ -298,13 +365,16 @@ def q_hybrid(db, has_fts, query, limit):
         score = s + f * (0.5 + s)   # fusion: both-signal chunks rank highest
         sid, text = texts.get(i, (None, ""))
         out.append({"chunk": i, "source": srcs.get(sid), "score": round(score, 3),
-                    "similarity": round(s, 3), "fts_hit": bool(f), "text": text[:240]})
+                    "similarity": round(s, 3), "fts_hit": bool(f), "text": text[:240],
+                    "attribution": att.get(sid)})
     out.sort(key=lambda r: -r["score"])
     return out[:limit]
 
 
 def q_filter(db, source=None, kind=None, limit=20):
-    sql = "SELECT c.id, s.name, s.kind, substr(c.text,1,200), c.words FROM chunks c JOIN sources s ON s.id=c.source_id"
+    sql = ("SELECT c.id, s.name, s.kind, substr(c.text,1,200), c.words, s.id, "
+           "s.url, s.credential, s.acquired_at, s.acquire_tool, s.sha256 "
+           "FROM chunks c JOIN sources s ON s.id=c.source_id")
     where, args = [], []
     if source:
         where.append("s.name LIKE ?"); args.append(f"%{source}%")
@@ -314,7 +384,9 @@ def q_filter(db, source=None, kind=None, limit=20):
         sql += " WHERE " + " AND ".join(where)
     sql += " LIMIT ?"; args.append(limit)
     rows = db.execute(sql, args).fetchall()
-    return [{"chunk": r[0], "source": r[1], "kind": r[2], "text": r[3], "words": r[4]} for r in rows]
+    return [{"chunk": r[0], "source": r[1], "kind": r[2], "text": r[3], "words": r[4],
+             "attribution": {"source_id": r[5], "url": r[6], "credential": r[7],
+                             "acquired_at": r[8], "tool": r[9], "sha256": r[10]}} for r in rows]
 
 
 def q_insight(db, bridges=15, orphans=False):

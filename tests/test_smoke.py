@@ -230,6 +230,48 @@ def test_export_sync():
         check("merge dedup", False, r5.stderr[-150:])
 
 
+
+
+def test_attribution_flow():
+    print("attribution flow (acquire -> ingest -> graph -> search)")
+    import tempfile
+    tmp = tempfile.mkdtemp()
+    # synthetic acquisition manifest + file (offline: no real fetch)
+    ws = os.path.join(tmp, "acquired")
+    os.makedirs(ws)
+    open(os.path.join(ws, "page.txt"), "w").write("self-improving agent creates skills from experience. " * 6)
+    json.dump({"sources": [{"kind": "page", "url": "https://example.com/x",
+                            "file": os.path.join(ws, "page.txt"), "sha256": "0" * 64,
+                            "tool": "urllib+stdlib-html", "size": 10,
+                            "acquired_at": "2026-10-06T00:00:00+0000"}]},
+              open(os.path.join(ws, "acquisition.json"), "w"))
+    r = subprocess.run([PY, os.path.join(HERE, "ingest.py"), ws, "--recursive"],
+                       capture_output=True, text=True, timeout=120)
+    check("ingest with acquisition", r.returncode == 0, r.stderr[-200:])
+    db = os.path.join(tmp, "g.db")
+    r2 = subprocess.run([PY, os.path.join(HERE, "graph.py"), "ingest",
+                         os.path.join(ws, "extracted"), "--db", db],
+                        capture_output=True, text=True, timeout=120)
+    check("graph ingest", r2.returncode == 0, r2.stderr[-200:])
+    r3 = subprocess.run([PY, os.path.join(HERE, "graph.py"), "search", "self-improving",
+                         "--db", db, "--limit", "1"], capture_output=True, text=True, timeout=60)
+    if r3.returncode == 0 and r3.stdout.strip():
+        res = json.loads(r3.stdout)
+        att = res[0].get("attribution") or {}
+        check("search result carries url", att.get("url") == "https://example.com/x", str(att)[:120])
+        check("search result carries tool", att.get("tool") == "urllib+stdlib-html", str(att)[:120])
+    else:
+        check("search result carries url", False, r3.stderr[-150:])
+
+def test_responsive_ui_served():
+    print("responsive ui served by api")
+    import zipfile
+    src = open(os.path.join(HERE, "ui.html")).read()
+    check("ui has media queries", "@media (max-width: 720px)" in src and "@media (max-width: 480px)" in src)
+    check("ui escapes untrusted text", "const esc =" in src)
+    check("ui renders attribution", "attribution" in src and "acquire" not in src[:50])
+
+
 def main():
     test_cli_shapes()
     test_srt_and_fingerprint()
@@ -240,6 +282,8 @@ def main():
     test_author_and_explain()
     test_graph_and_source()
     test_export_sync()
+    test_attribution_flow()
+    test_responsive_ui_served()
     print(f"\n{PASS} passed, {FAIL} failed")
     sys.exit(1 if FAIL else 0)
 

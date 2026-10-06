@@ -53,7 +53,7 @@ def graph_data(db, source=None, kind=None):
         where.append("s.kind = ?"); args.append(kind)
     wsql = (" WHERE " + " AND ".join(where)) if where else ""
     sources = [dict(r) for r in db.execute(
-        f"SELECT id, name, kind, path, sha256 FROM sources s{wsql}", args)]
+        f"SELECT id, name, kind, path, sha256, url, credential, acquired_at, acquire_tool FROM sources s{wsql}", args)]
     sids = [s["id"] for s in sources]
     chunks = []
     if sids:
@@ -102,13 +102,16 @@ def out_jsonl(db, path, source, kind):
     n = 0
     with open(path, "w") as f:
         for r in db.execute(
-                f"SELECT c.id, c.idx, c.text, c.words, c.vector_json, s.name, s.kind, s.sha256 "
+                f"SELECT c.id, c.idx, c.text, c.words, c.vector_json, s.name, s.kind, s.sha256, "
+                f"s.url, s.credential, s.acquired_at, s.acquire_tool "
                 f"FROM chunks c JOIN sources s ON s.id = c.source_id{wsql} "
                 f"ORDER BY s.id, c.idx", args):
             f.write(json.dumps({
                 "chunk_id": r["id"], "idx": r["idx"], "text": r["text"],
                 "words": r["words"], "source": r["name"], "kind": r["kind"],
                 "source_sha256": r["sha256"],
+                "url": r["url"], "credential": r["credential"],
+                "acquired_at": r["acquired_at"], "acquire_tool": r["acquire_tool"],
                 "vector": json.loads(r["vector_json"]),
                 "concepts": [c for c, _ in cc_by_chunk.get(r["id"], [])],
             }, ensure_ascii=False) + "\n")
@@ -149,8 +152,10 @@ def out_csv(db, outdir, source, kind):
     p3 = os.path.join(outdir, "sources.csv")
     with open(p3, "w", newline="") as f:
         w = csv.writer(f)
-        w.writerow(["source_id", "name", "kind", "sha256", "chunks", "words"])
-        for r in db.execute("""SELECT s.id, s.name, s.kind, s.sha256, count(c.id), sum(c.words)
+        w.writerow(["source_id", "name", "kind", "sha256", "url", "credential",
+                     "acquired_at", "tool", "chunks", "words"])
+        for r in db.execute("""SELECT s.id, s.name, s.kind, s.sha256, s.url, s.credential,
+                                      s.acquired_at, s.acquire_tool, count(c.id), sum(c.words)
                                       FROM sources s LEFT JOIN chunks c ON c.source_id = s.id
                                       GROUP BY s.id ORDER BY s.id"""):
             w.writerow(list(r))

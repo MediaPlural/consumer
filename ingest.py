@@ -419,6 +419,22 @@ def main():
         except Exception:
             corpus = {"files": []}
 
+    # ATTRIBUTION (natural inbuilt): pull url/credential identity/timestamp
+    # from any acquisition.json in the source tree so every downstream record
+    # — corpus.json, the graph, queries, exports — carries full provenance.
+    # NOTE: the walk var is _dirs (not files) — shadowing `files` here once
+    # silently emptied the ingest loop (files=0 with a file present).
+    acq = {}
+    for root, _dirs, _fnames in os.walk(os.path.dirname(os.path.abspath(a.path)) or "."):
+        _dirs[:] = [d for d in _dirs if d not in SKIP_DIRNAMES]
+        apath = os.path.join(root, "acquisition.json")
+        if os.path.exists(apath):
+            try:
+                for rec in json.load(open(apath)).get("sources", []):
+                    acq[os.path.abspath(rec.get("file", ""))] = rec
+            except Exception:
+                pass
+
     counts = {"text": 0, "media": 0, "image": 0, "binary": 0}
     used_stems = set()
     for path in files:
@@ -426,6 +442,13 @@ def main():
         entry = {"file": os.path.abspath(path), "rel": rel, "sha256": sha256_file(path),
                  "size": os.path.getsize(path),
                  "ingested_at": time.strftime("%Y-%m-%dT%H:%M:%S%z")}
+        # merge acquisition attribution when this file was acquired (url,
+        # credential identity, acquired_at, tool)
+        arec = acq.get(os.path.abspath(path))
+        if arec:
+            for k in ("url", "credential", "acquired_at", "tool", "kind"):
+                if arec.get(k) and k not in entry:
+                    entry[k] = arec[k]
         kind, text = extract(path)
         entry["kind"] = kind
         if kind == "text" and text is not None:
@@ -459,7 +482,11 @@ def main():
         json.dump(corpus, f, indent=2)
 
     print(json.dumps({"ok": True, "files": len(files), **counts, "corpus": corpus_path,
-                      "out_dir": out_dir}, indent=2))
+                      "out_dir": out_dir,
+                      "files_list": [{"file": e["file"], "kind": e["kind"],
+                                      "needs_transcription": e.get("needs_transcription", False),
+                                      "needs_ocr": e.get("needs_ocr", False)}
+                                     for e in corpus["files"]]}, indent=2))
 
 
 if __name__ == "__main__":

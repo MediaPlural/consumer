@@ -98,6 +98,14 @@ class Handler(BaseHTTPRequestHandler):
             return self._send({"ok": True, "db": os.path.abspath(DB),
                                "endpoints": ["search", "semantic", "hybrid",
                                              "filter", "insight", "maths", "export"]})
+        if route == "ui":
+            body = open(os.path.join(HERE, "ui.html"), "rb").read()
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
         return self._send({"error": f"unknown route: {route}"}, 404)
 
     def do_POST(self):

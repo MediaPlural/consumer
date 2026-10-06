@@ -225,15 +225,46 @@ def main():
                            capture_output=True, text=True, timeout=3600)
         if r.returncode != 0:
             sys.exit(f"FATAL: ingest failed:\n{(r.stderr or '')[-500:]}")
+        ing = json.loads(r.stdout)
+
+        # MEDIA GAP (the one-command path must close it): videos/audio never
+        # reach the graph unless we transcribe them here. corpus.json flags
+        # them needs_transcription; the STT lane turns them into transcript
+        # text, which the graph then ingests as first-class sources.
+        # NOTE: ingest's stdout has files=N (count) and files_list=[...] —
+        # iterate the list, not the int (TypeError bug caught by the suite).
+        media = [e for e in ing.get("files_list", []) if e.get("needs_transcription")]
+        transcript_dir = None
+        if media:
+            venv = os.environ.get("CONSUMER_VENV_PYTHON",
+                                  os.path.expanduser("~/.hermes/venvs/consumer/bin/python"))
+            transcript_dir = os.path.join(os.path.dirname(ingest_dir), "transcripts")
+            os.makedirs(transcript_dir, exist_ok=True)
+            done = 0
+            for e in media:
+                tr = subprocess.run(["python3", os.path.join(HERE, "transcribe.py"),
+                                     e["file"], "--out-dir", transcript_dir,
+                                     "--venv-python", venv],
+                                    capture_output=True, text=True, timeout=7200)
+                done += 1 if tr.returncode == 0 else 0
+            ing["media_transcribed"] = done
+            ing["media_total"] = len(media)
+
         corpus_dir = os.path.join(ingest_dir, "extracted") if os.path.isdir(
             os.path.join(ingest_dir, "extracted")) else ingest_dir
-        # vectorized graph
-        r2 = subprocess.run(["python3", os.path.join(HERE, "graph.py"), "ingest",
-                             corpus_dir, "--db", a.db],
-                            capture_output=True, text=True, timeout=3600)
+        # vectorized graph (transcripts land beside corpus.json: bare-dir path)
+        graph_cmd = ["python3", os.path.join(HERE, "graph.py"), "ingest", corpus_dir, "--db", a.db]
+        r2 = subprocess.run(graph_cmd, capture_output=True, text=True, timeout=3600)
         if r2.returncode != 0:
             sys.exit(f"FATAL: graph ingest failed:\n{(r2.stderr or '')[-500:]}")
         out["graph"] = json.loads(r2.stdout)
+        # transcripts are their own source class in the graph
+        if transcript_dir and os.listdir(transcript_dir):
+            r3 = subprocess.run(["python3", os.path.join(HERE, "graph.py"), "ingest",
+                                 transcript_dir, "--db", a.db],
+                                capture_output=True, text=True, timeout=3600)
+            if r3.returncode == 0:
+                out["graph"]["transcript_sources"] = json.loads(r3.stdout).get("sources")
         out["next"] = (f"python3 graph.py search/semantic/hybrid/filter/insight/maths --db {a.db}")
     else:
         out["next"] = f"python3 ingest.py {ingest_dir} --recursive"
