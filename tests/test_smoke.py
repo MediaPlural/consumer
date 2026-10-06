@@ -476,6 +476,109 @@ def test_bank_act_injection():
     check("clipboard holds literal payload", payload in clip.stdout)
 
 
+def test_sitegen_game_adapter():
+    print("sitegen guild game adapter (contract)")
+    import tempfile
+    sys.path.insert(0, HERE)
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("sg", os.path.join(HERE, "sitegen.py"))
+    sg = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(sg)
+
+    # 1. module-level mapping contract: canonical names + quest tiers
+    check("guild schema version", sg.GUILD_EVENT_VERSION == "guild-progression-v1")
+    check("guild event kinds", (sg.GUILD_EVENT_KIND_LESSON, sg.GUILD_EVENT_KIND_XP,
+                                sg.GUILD_EVENT_KIND_LEVEL) == ("lesson_complete", "xp_gain", "level_up"))
+    tiers = [name for _, name in sg.QUEST_TIERS]
+    check("canonical quest tiers", tiers == ["Trivial", "Minor", "Standard", "Major", "Legendary", "Mythic"],
+          str(tiers))
+    check("tier floors match codex", [f for f, _ in sg.QUEST_TIERS] == [0, 25, 100, 500, 3000, 25000])
+    check("tier mapping trivial", sg.quest_tier_for(10) == "Trivial")
+    check("tier mapping minor", sg.quest_tier_for(48) == "Minor")
+    check("tier mapping standard", sg.quest_tier_for(120) == "Standard")
+    check("quality standard default", sg.quality_for(50) == "Standard")
+    ev = sg.guild_event(sg.GUILD_EVENT_KIND_LESSON, {"member_uuid": "u1", "xp_delta": 40})
+    check("guild_event envelope", ev["schema"] == "guild-progression-v1"
+          and ev["kind"] == "lesson_complete" and ev["payload"]["xp_delta"] == 40)
+
+    # 2. real site generation with --game-adapter
+    dist = tempfile.mkdtemp() + "/distilled"
+    os.makedirs(dist, exist_ok=True)
+    with open(os.path.join(dist, "keywords.json"), "w") as f:
+        json.dump({"keywords": [{"term": "funnel", "tf": 3, "documents": 1, "score": 1.5}]}, f)
+    with open(os.path.join(dist, "concepts.json"), "w") as f:
+        json.dump({"concepts": [{"phrase": "funnel machine", "count": 2}]}, f)
+    with open(os.path.join(dist, "next-best-seeds.json"), "w") as f:
+        json.dump({"seeds": [{"sentence": "Reply within five minutes.", "density": 0.6, "words": 7}]}, f)
+    with open(os.path.join(dist, "course-map.md"), "w") as f:
+        f.write("# Test course\n\nA map.")
+    lessons_dir = tempfile.mkdtemp() + "/transcripts"
+    os.makedirs(lessons_dir, exist_ok=True)
+    for i, txt in enumerate(["Lesson one about the funnel machine. " * 12,
+                             "Lesson two about five minutes replies. " * 12], 1):
+        with open(os.path.join(lessons_dir, f"l{i:02d}.transcript.json"), "w") as f:
+            json.dump({"text": txt, "segments": [{"start": 0.0, "end": 60.0 * i, "text": "s"}]}, f)
+    out = tempfile.mkdtemp() + "/site/index.html"
+    r = subprocess.run([PY, os.path.join(HERE, "sitegen.py"), dist,
+                        "--lessons", lessons_dir, "--title", "Adapter Course",
+                        "--out", out, "--game-adapter"],
+                       capture_output=True, text=True, timeout=120)
+    check("sitegen --game-adapter runs", r.returncode == 0, r.stderr[-200:])
+    res = json.loads(r.stdout) if r.returncode == 0 else {}
+    adapter_path = res.get("game_adapter")
+    check("adapter emitted next to site", bool(adapter_path) and os.path.exists(adapter_path),
+          str(res)[:150])
+    check("output reports guild schema", res.get("guild_schema") == "guild-progression-v1")
+
+    # 3. adapter script: canonical event shape (assert the mapping contract,
+    #    not a live guild call — no guild runtime needed)
+    if adapter_path and os.path.exists(adapter_path):
+        src = open(adapter_path).read()
+        check("adapter declares schema", 'var SCHEMA = "guild-progression-v1"' in src)
+        for field in ("member_uuid", "quest_id", "quest_tier", "quality",
+                      "xp_delta", "xp_total", "level", "rank", "rank_level",
+                      "band", "occurred_at", "source"):
+            check(f"adapter emits canonical field {field}", field + ":" in src)
+        for kind in ("lesson_complete", "xp_gain", "level_up"):
+            check(f"adapter emits kind {kind}", f'"{kind}"' in src)
+        check("adapter wraps consumerGameEngine",
+              "window.consumerGameEngine = function" in src)
+        check("adapter uses guild bridge", "guildBridge" in src and "guild-adapter-queue" in src)
+        check("adapter band mapping codex v2",
+              '"Peak"' in src and '"Late"' in src and '"Middle"' in src and '"Early"' in src)
+        check("adapter no network calls", "fetch(" not in src and "XMLHttpRequest" not in src)
+        # simulate the mapping in Python: a lesson_complete event must carry
+        # the canonical payload keys with consumer values
+        xp = sg.xp_for_lesson({"dur_s": 60.0}, 0)
+        ev = sg.guild_event(sg.GUILD_EVENT_KIND_LESSON, {
+            "member_uuid": None, "source": "consumer", "quest_id": "lesson-01",
+            "quest_tier": sg.quest_tier_for(xp), "quality": sg.quality_for(xp),
+            "xp_delta": xp, "xp_total": xp, "level": 1,
+            "rank": None, "rank_level": None, "band": None,
+            "occurred_at": "2026-10-06T00:00:00.000Z"})
+        p = ev["payload"]
+        check("simulated event shape", ev["schema"] == "guild-progression-v1"
+              and p["quest_id"] == "lesson-01" and p["quest_tier"] == sg.quest_tier_for(xp)
+              and p["quest_tier"] in tiers
+              and p["quality"] == "Standard" and p["xp_delta"] == xp
+              and p["source"] == "consumer" and isinstance(p["xp_total"], int))
+        # site includes the hook the adapter wraps
+        site_src = open(out).read()
+        check("site keeps consumerGameEngine hook", "window.consumerGameEngine" in site_src)
+        check("site has data-xp attributes", 'data-xp="' in site_src)
+
+    # 4. flag is OPTIONAL: default generation emits no adapter
+    out2 = tempfile.mkdtemp() + "/plain/index.html"
+    r2 = subprocess.run([PY, os.path.join(HERE, "sitegen.py"), dist,
+                         "--lessons", lessons_dir, "--title", "Plain",
+                         "--out", out2], capture_output=True, text=True, timeout=120)
+    res2 = json.loads(r2.stdout) if r2.returncode == 0 else {}
+    check("default run has no adapter", r2.returncode == 0 and "game_adapter" not in res2,
+          str(res2)[:150])
+    check("plain site dir has no game-adapter.js",
+          not os.path.exists(os.path.join(os.path.dirname(out2), "game-adapter.js")))
+
+
 def main():
     test_cli_shapes()
     test_srt_and_fingerprint()
@@ -494,6 +597,7 @@ def main():
     test_bank()
     test_bank_act_lanes()
     test_bank_act_injection()
+    test_sitegen_game_adapter()
     print(f"\n{PASS} passed, {FAIL} failed")
     sys.exit(1 if FAIL else 0)
 
