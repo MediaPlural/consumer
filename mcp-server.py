@@ -65,6 +65,36 @@ TOOLS = [
         "description": "Distill a directory of transcripts into keywords, concepts, "
                        "next-best-sentence seeds, and a course map.",
     },
+    {
+        "name": "source",
+        "description": "Point the consumer at ANY source (website, zip, gdrive link, local dir, course URL) — resolves, acquires, ingests, and builds the vectorized graph (--full).",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "source": {"type": "string", "description": "URL / path / zip / dir"},
+                "workspace": {"type": "string", "description": "workspace dir (default ./consumer-workspace)"},
+                "db": {"type": "string", "description": "graph db path (default ./consumer.graph.db)"},
+                "full": {"type": "boolean", "description": "chain ingest + graph automatically (default true)"},
+            },
+            "required": ["source"],
+        },
+    },
+    {
+        "name": "graph_query",
+        "description": "Query the assimilated knowledge graph: search (FTS), semantic (cosine), hybrid (fused), filter, insight (cross-source bridges — discovery), maths (corpus stats).",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "mode": {"type": "string", "enum": ["search", "semantic", "hybrid", "filter", "insight", "maths"]},
+                "query": {"type": "string", "description": "query text (search/semantic/hybrid)"},
+                "source": {"type": "string", "description": "filter: source name contains"},
+                "kind": {"type": "string", "description": "filter: source kind"},
+                "limit": {"type": "integer"},
+                "db": {"type": "string", "description": "graph db path"},
+            },
+            "required": ["mode"],
+        },
+    },
 ]
 
 
@@ -87,6 +117,28 @@ def call_tool(name, args):
             cmd += ["--out-dir", args["out_dir"]]
         if args.get("top_k"):
             cmd += ["--top-k", str(args["top_k"])]
+    elif name == "source":
+        cmd = ["python3", os.path.join(HERE, "source.py"), args["source"]]
+        if args.get("workspace"):
+            cmd += ["--workspace", args["workspace"]]
+        if args.get("db"):
+            cmd += ["--db", args["db"]]
+        if args.get("full", True):
+            cmd += ["--full"]
+    elif name == "graph_query":
+        mode = args["mode"]
+        cmd = ["python3", os.path.join(HERE, "graph.py"), mode]
+        if mode in ("search", "semantic", "hybrid"):
+            cmd += [args.get("query", "")]
+        if mode == "filter":
+            if args.get("source"):
+                cmd += ["--source", args["source"]]
+            if args.get("kind"):
+                cmd += ["--kind", args["kind"]]
+        if args.get("limit"):
+            cmd += ["--limit", str(args["limit"])]
+        if args.get("db"):
+            cmd += ["--db", args["db"]]
     else:
         return {"isError": True, "content": [{"type": "text", "text": f"unknown tool: {name}"}]}
     proc = subprocess.run(cmd, capture_output=True, text=True, timeout=3600)

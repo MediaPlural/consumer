@@ -39,56 +39,74 @@ upstream: MediaPlural/consumer
 # Consumer — the knowledge consumer/assimilator
 
 Repo: `/Users/sharpe/consumer` (umbra: `~/consumer`). Public:
-https://github.com/MediaPlural/consumer (MIT). Courses are ONE FACET —
-the same pipeline consumes any knowledge material and produces structured
-corpus + new authored artifacts.
+https://github.com/MediaPlural/consumer (MIT). **The engine of
+enlightenment**: consume, assimilate, integrate everything — then discover
+new insights and synthesis. Courses are ONE input shape; point it at
+websites, zips, gdrive, folders, any knowledge material.
 
-## The tools (stage → tool → job)
+## The loop (three layers)
+
+1. **CONSUME**: source.py (point at ANYTHING) → ingest.py (any format) →
+   transcribe.py (local STT) — the acquisition layer
+2. **ASSIMILATE**: distill.py (keywords/concepts/seeds) → graph.py (the
+   vectorized graph: sqlite + FTS5 + deterministic hashed embeddings,
+   concept co-occurrence links, cross-source bridges)
+3. **DISCOVER**: graph.py queries — search / semantic / hybrid / filter /
+   insight / maths — plus create facet (author.py, explain.py, sitegen.py)
+   turning what's assimilated into new works
+
+## The tools
 
 | Stage | Tool | Job |
 |---|---|---|
-| acquire | `course-dl.py` | whole-course crawl (skool/Kajabi/HighLevel/Gumroad/Coursera/any): pages, files, videos → `acquisition.json` |
+| point | `source.py` | ANY source (website/zip/gdrive/dir/course URL) → workspace + auto ingest + auto graph (`--full`) |
+| acquire | `course-dl.py` | whole-course crawl (skool/Kajabi/HighLevel/Gumroad/Coursera/any) |
 | fetch one | `scrape.py` | single URL → media/page + manifest |
-| ingest | `ingest.py` | any-format text extraction: csv/xlsx/docx/pptx/epub/pdf/svg/md/srt/vtt + magic-byte sniffing → `corpus.json` |
-| transcribe | `transcribe.py` | LOCAL STT (MLX Whisper Apple Silicon / faster-whisper elsewhere), word timestamps → transcript JSON/TXT/SRT/sha256 |
-| distill | `distill.py` | corpus → keywords/concepts/next-best-seeds/course-map |
-| author | `author.py` | draft new courses from corpora (`new`, `from-corpus`, `edit`) |
-| explain | `explain.py` | corpus → rendermill-compatible explainer project + zero-dep storyboard |
-| learn | `sitegen.py` | course site: floating ToC, per-lesson Insights, XP, edition export, training packages |
-| insights | `insights.js` | "{Agent} Insights" one-tap panel for any DOM surface |
-| trial | `trial.py` | honest trial lifecycle (one per platform, cancel on time) |
-| creds | `creds.py` | segmented credential store — broker-only, identity-only provenance |
-| wrapper | `consumer.py` | URL/dir → acquire+transcribe+distill in one command |
-| agents | `mcp-server.py` | MCP tools: transcribe/scrape/distill |
+| ingest | `ingest.py` | any-format extraction: csv/xlsx/docx/pptx/epub/pdf/svg/md/srt/vtt + magic-byte sniffing |
+| transcribe | `transcribe.py` | LOCAL STT (MLX Whisper / faster-whisper), word timestamps |
+| distill | `distill.py` | keywords, concepts, next-best-seeds, course map |
+| **graph** | `graph.py` | **the assimilated knowledge graph** — query 5 ways (below) |
+| author | `author.py` | draft courses from corpora (`new`/`from-corpus`/`edit`) |
+| explain | `explain.py` | corpus → rendermill-compatible explainer + storyboard |
+| learn | `sitegen.py` | course site: ToC/Insights/XP/editions/training |
+| insights | `insights.js` | "{Agent} Insights" one-tap panel |
+| trial | `trial.py` | honest trial lifecycle |
+| creds | `creds.py` | segmented credential store (Muse pattern) |
 
-## Decision table (user says → run)
+## The graph (graph.py) — the discovery engine
 
 ```bash
-# setup once per box (isolated venv; NEVER pip-install into a shared env)
+python3 graph.py ingest CORPUS_DIR --db graph.db           # build from corpus.json+extracted/
+python3 graph.py search "affiliate*" --db graph.db         # FTS (prefix queries need *)
+python3 graph.py semantic "payout structures" --db graph.db  # cosine, no model needed
+python3 graph.py hybrid "recurring commission" --db graph.db # FTS+semantic fused
+python3 graph.py filter --kind text --source csv --db graph.db
+python3 graph.py insight --bridges 15 --orphans --db graph.db # cross-source bridges = discovery
+python3 graph.py maths --db graph.db                       # corpus statistics
+```
+
+Deterministic hashed embeddings (blake2b token-ngrams → 512-dim, L2-normalized):
+same text = same vector forever, no model download, no API. Concept
+co-occurrence links + **bridges** (concepts spanning ≥2 sources) are where
+new synthesis lives — integration makes visible what no single source says.
+
+## Point-at-anything (source.py)
+
+```bash
+python3 source.py https://site.com/docs --workspace ./ws --full --db g.db
+python3 source.py ~/Downloads/course-export.zip --workspace ./ws --full --db g.db
+python3 source.py "https://drive.google.com/file/d/ID/view" --workspace ./ws --full --db g.db
+python3 source.py ~/my-course --workspace ./ws --full --db g.db
+```
+`--full` chains ingest + graph automatically. GDrive: public files work;
+private folders → use Drive's "Download as ZIP".
+
+## Setup
+
+```bash
 bash install.sh && export CONSUMER_VENV_PYTHON=~/.hermes/venvs/consumer/bin/python
-python3 tests/test_smoke.py            # 22/22 green before anything
-
-# "consume this course" (platform course, member access)
-python3 creds.py import skool cookies.txt          # once; jar MOVES into the store
-python3 course-dl.py "https://www.skool.com/X/classroom" --platform skool --out-dir ./course
-
-# "transcribe these videos"           # "ingest these files" (any format)
-python3 transcribe.py FILE --out-dir ./transcripts
-python3 ingest.py DIR --recursive
-
-# "distill this corpus"
-python3 distill.py ./transcripts --out-dir ./distilled
-
-# one command for URL or media dir:
-python3 consumer.py URL-OR-DIR --tag my-course
-
-# "author a course from this" / "make an explainer"
-python3 author.py from-corpus ./distilled --title "T" --out ./edition
-python3 explain.py ./distilled --title "T" --out ./explainer
-# rendermill installed: cd explainer && rendermill render
-
-# "course site" (ToC/Insights/XP/training)
-python3 sitegen.py ./distilled --lessons ./transcripts --title "T" --out ./site/index.html
+python3 tests/test_smoke.py            # green before anything
+bash install-skill.sh                  # load as a Hermes skill
 ```
 
 ## The earned traps (do not re-learn these)

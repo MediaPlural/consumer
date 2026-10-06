@@ -159,6 +159,35 @@ def test_author_and_explain():
               and "narration" in ns["SLIDES"][0] and "tts" in ns["CONFIG"])
 
 
+
+
+def test_graph_and_source():
+    print("graph + source (unit, live mini-corpus)")
+    import tempfile, zipfile
+    tmp = tempfile.mkdtemp()
+    # a two-file zip source
+    zp = os.path.join(tmp, "k.zip")
+    with zipfile.ZipFile(zp, "w") as z:
+        z.writestr("a.txt", "The funnel machine decides the next move. " * 8)
+        z.writestr("b.md", "Reply within five minutes. New evidence every day. " * 8)
+    r = subprocess.run([PY, os.path.join(HERE, "source.py"), zp,
+                        "--workspace", os.path.join(tmp, "ws"), "--full",
+                        "--db", os.path.join(tmp, "g.db")],
+                       capture_output=True, text=True, timeout=120)
+    check("source --full chain", r.returncode == 0 and '"graph"' in r.stdout, r.stderr[-200:])
+    if r.returncode == 0:
+        g = json.loads(r.stdout)["graph"]
+        check("graph built", g["sources"] >= 2 and g["chunks"] >= 2, str(g)[:150])
+    db = os.path.join(tmp, "g.db")
+    if os.path.exists(db):
+        r2 = subprocess.run([PY, os.path.join(HERE, "graph.py"), "semantic",
+                             "funnel machine", "--db", db], capture_output=True, text=True, timeout=60)
+        check("semantic query", r2.returncode == 0 and len(json.loads(r2.stdout)) >= 1, r2.stderr[-150:])
+        r3 = subprocess.run([PY, os.path.join(HERE, "graph.py"), "insight",
+                             "--db", db], capture_output=True, text=True, timeout=60)
+        check("insight query", r3.returncode == 0 and "bridge_concepts" in r3.stdout, r3.stderr[-150:])
+
+
 def main():
     test_cli_shapes()
     test_srt_and_fingerprint()
@@ -167,6 +196,7 @@ def main():
     test_mcp_dispatch()
     test_course_dl_skool()
     test_author_and_explain()
+    test_graph_and_source()
     print(f"\n{PASS} passed, {FAIL} failed")
     sys.exit(1 if FAIL else 0)
 

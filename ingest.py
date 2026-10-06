@@ -307,8 +307,19 @@ def read_pdf(path):
             except UnicodeDecodeError:
                 text = line.decode("latin-1", "replace")
             text = text.replace("\\(", "(").replace("\\)", ")").replace("\\\\", "\\")
-            if text.strip():
-                out.append(text.strip())
+            # GARBAGE FILTER (earned the hard way): content streams of
+            # scanned/image-heavy PDFs contain paren-strings of raw binary;
+            # without this filter a 350KB mislabeled pptx yields ~350K chars
+            # of \x00\x10 junk that poisons the concept graph.
+            if not text.strip():
+                continue
+            printable = sum(1 for ch in text if ch.isprintable() or ch in "\n\t")
+            if printable / len(text) < 0.85:
+                continue
+            letters = sum(1 for ch in text if ch.isalpha() or ch.isspace())
+            if letters / len(text) < 0.5:
+                continue
+            out.append(text.strip())
     if not out:
         return "(no extractable text — likely scanned; route to OCR/vision adapter)"
     return "\n".join(out)
