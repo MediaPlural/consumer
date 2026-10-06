@@ -111,12 +111,62 @@ def test_mcp_dispatch():
     check("unknown tool -> isError", resp["result"].get("isError") is True, str(resp)[:200])
 
 
+def test_course_dl_skool():
+    print("course-dl skool support (unit)")
+    sys.path.insert(0, HERE)
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("cdl", os.path.join(HERE, "course-dl.py"))
+    cdl = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(cdl)
+    check("skool md regex 32-hex", bool(cdl.SKOOL_MD_RE.search('href="?md=0430f1b55fa146099a333506c6adb7ac"')))
+    check("skool md regex rejects short", not cdl.SKOOL_MD_RE.search("md=abc123"))
+    # skool referer: save_media builds the yt-dlp command with --referer
+    src = open(os.path.join(HERE, "course-dl.py")).read()
+    check("referer flag present", '--referer", "https://www.skool.com' in src or
+          '"--referer", "https://www.skool.com"' in src or "--referer" in src)
+    # EMBED_HOSTS covers skool/mux/cloudflarestream
+    check("embed hosts extended", all(h in cdl.EMBED_HOSTS for h in ("skool", "mux", "cloudflarestream")))
+
+
+def test_author_and_explain():
+    print("author + explain CLIs (unit)")
+    r1 = run([PY, os.path.join(HERE, "author.py"), "--help"])
+    check("author.py --help", r1.returncode == 0, r1.stderr[:150])
+    r2 = run([PY, os.path.join(HERE, "explain.py"), "--help"])
+    check("explain.py --help", r2.returncode == 0, r2.stderr[:150])
+    # from-corpus against the live test corpus (created by earlier runs);
+    # if missing, synthesize a minimal distilled corpus
+    import tempfile
+    dist = tempfile.mkdtemp() + "/distilled"
+    os.makedirs(dist, exist_ok=True)
+    with open(os.path.join(dist, "concepts.json"), "w") as f:
+        json.dump({"concepts": [{"phrase": "five minutes", "count": 2}]}, f)
+    with open(os.path.join(dist, "next-best-seeds.json"), "w") as f:
+        json.dump({"seeds": [{"sentence": "Reply within five minutes instead of 30.", "density": 0.6, "words": 7}]}, f)
+    with open(os.path.join(dist, "keywords.json"), "w") as f:
+        json.dump({"keywords": [{"term": "reply", "tf": 3, "documents": 1, "score": 1.5}]}, f)
+    out = tempfile.mkdtemp() + "/course"
+    r3 = run([PY, os.path.join(HERE, "author.py"), "from-corpus", dist, "--title", "T", "--out", out, "--lessons", "2"])
+    check("author from-corpus", r3.returncode == 0 and os.path.exists(os.path.join(out, "lessons", "lesson-02.md")), r3.stderr[:150])
+    ex = tempfile.mkdtemp() + "/explainer"
+    r4 = run([PY, os.path.join(HERE, "explain.py"), dist, "--title", "T", "--out", ex])
+    ok = r4.returncode == 0 and os.path.exists(os.path.join(ex, "slides.py")) and os.path.exists(os.path.join(ex, "storyboard.md"))
+    check("explain project", ok, r4.stderr[:150])
+    if ok:
+        ns = {}
+        exec(open(os.path.join(ex, "slides.py")).read(), ns)
+        check("rendermill schema", isinstance(ns["SLIDES"], list) and ns["SLIDES"][0]["type"] == "html"
+              and "narration" in ns["SLIDES"][0] and "tts" in ns["CONFIG"])
+
+
 def main():
     test_cli_shapes()
     test_srt_and_fingerprint()
     test_distiller()
     test_scrape_manifest()
     test_mcp_dispatch()
+    test_course_dl_skool()
+    test_author_and_explain()
     print(f"\n{PASS} passed, {FAIL} failed")
     sys.exit(1 if FAIL else 0)
 

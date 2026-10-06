@@ -35,7 +35,12 @@ FILE_EXTS = (".pdf", ".csv", ".xlsx", ".xlsm", ".docx", ".pptx", ".epub", ".zip"
              ".mp3", ".mp4", ".m4a", ".wav", ".png", ".jpg", ".jpeg", ".webp",
              ".svg", ".txt", ".md", ".json", ".tsv", ".srt", ".vtt", ".mov", ".mkv")
 EMBED_HOSTS = ("youtube.com", "youtu.be", "vimeo.com", "wistia.net", "wistia.com",
-               "player.vimeo", "kajabi", "highlevel", "gumroad")
+               "player.vimeo", "kajabi", "highlevel", "gumroad", "cloudflarestream",
+               "mux", "skool")
+# skool.com: lessons are {community}/classroom/{id}?md={32-hex}; the full
+# lesson list is embedded in classroom page source (no JS needed), and
+# videos resolve via yt-dlp with cookies + skool referer (Cloudflare Stream).
+SKOOL_MD_RE = re.compile(r"md=([a-f0-9]{32})")
 UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Safari/605.1.15 consumer/0.1"
 
 
@@ -182,6 +187,10 @@ class Crawler:
         pre = [ytdlp] if os.path.exists(ytdlp) else [self.venv_python, "-m", "yt_dlp"]
         cmd = pre + ["-f", "bv*+ba/b", "--no-playlist", "--no-warnings",
                      "-o", os.path.join(self.out, "media", "%(title).80s.%(ext)s"), url]
+        # skool videos sit behind Cloudflare Stream hotlink protection: the
+        # referer is required or the manifest 403s
+        if "skool.com" in url or "skool.com" in (referer or ""):
+            cmd += ["--referer", "https://www.skool.com"]
         r = subprocess.run(cmd, capture_output=True, text=True, timeout=7200)
         got = re.findall(r"Merging formats into \"(.+?)\"", r.stdout) or \
               re.findall(r"\[download\] Destination: (.+)", r.stdout) or \
@@ -209,6 +218,14 @@ class Crawler:
                 print(f"  fetch failed: {e}", file=sys.stderr)
                 continue
             self.save_page(url, html)
+
+            # skool classrooms: the lesson list (md= hashes) is in page source
+            if "skool.com" in url and "classroom" in url:
+                for md in SKOOL_MD_RE.findall(html):
+                    base = url.split("?")[0]
+                    lesson = f"{base}?md={md}"
+                    if lesson not in self.seen and lesson not in self.queue:
+                        self.queue.append(lesson)
 
             for href, src in LINK_RE.findall(html):
                 link = self.norm(href or src, url)
