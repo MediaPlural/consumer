@@ -111,7 +111,7 @@ git clone https://github.com/MediaPlural/consumer ~/consumer && \
 
 **Any AI agent (Claude, ChatGPT, Viiy, any MCP client):**
 ```
-Read https://viiy.to/consumer/INGEST.md and execute its load order; it routes everything else.
+Read https://ingest.fm/consumer/INGEST.md and execute its load order; it routes everything else.
 ```
 
 **Claude Code / Cursor / OpenClaw / VS Code / Hermes — one script detects and installs for every runtime present:**
@@ -119,7 +119,7 @@ Read https://viiy.to/consumer/INGEST.md and execute its load order; it routes ev
 git clone https://github.com/MediaPlural/consumer ~/consumer && bash ~/consumer/install-everywhere.sh
 ```
 
-**Any browser:** open https://viiy.to/consumer — the post page carries the same blocks, clickable and copyable.
+**Any browser:** open https://ingest.fm/consumer (public; ingest.my aliases it, viiy.to is the personal host) — the post page carries the same blocks, clickable and copyable.
 
 The INGEST.md manifest at the package root routes everything: load order, file map, sha256 fingerprint.
 
