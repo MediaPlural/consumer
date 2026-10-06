@@ -1,0 +1,13 @@
+consumer-out/
+acquired/
+course-dl/
+__pycache__/
+*.pyc
+.venv/
+venv/
+.DS_Store
+extracted/
+transcripts/
+distilled/
+site/
+trials.json
