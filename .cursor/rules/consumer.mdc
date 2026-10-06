@@ -1,0 +1,25 @@
+---
+description: Consumer engine knowledge: invoke MediaPlural/consumer CLI (source.py, graph.py, bank.py) when consuming courses/videos/PDFs/websites/email into a queryable knowledge graph, authoring courses, running connectors, or querying the graph (search/semantic/hybrid/filter/insight/maths).
+globs:
+alwaysApply: false
+---
+
+# Consumer rule (Cursor)
+
+When the task is consuming knowledge material (courses, videos, audio, books,
+PDFs, spreadsheets, slide decks, web pages, platform courses, email archives)
+into a structured knowledge graph, querying such a graph, authoring courses
+from consumed knowledge, or running bank connectors — use the consumer engine.
+
+Resolve the engine first:
+```bash
+CONSUMER_HOME=""
+for c in /Users/sharpe/consumer "$HOME/consumer" "tools/consumer"; do
+  [ -d "$c" ] && CONSUMER_HOME="$c" && break
+done
+```
+
+Front doors: `source.py <anything> --full` (chains ingest+graph),
+`graph.py <mode> <query>` (six modes), `bank.py <list|status|consume|act>`,
+`export.py --format json|jsonl|csv|md|sqlite|package`, `sync.py import-package`.
+Local STT: transcribe.py. Full manual: skills/consumer/SKILL.md upstream.

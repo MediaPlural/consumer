@@ -29,6 +29,13 @@ say "installed skill -> $DEST"
 printf '\n<!-- resolved repo path: %s -->\n' "$HERE" >> "$DEST/SKILL.md"
 say "repo path pinned: $HERE"
 
-say "verify (new or existing session):"
-say "  skill_view(name='consumer')"
-say "  python3 $HERE/tests/test_smoke.py   # 22/22 expected"
+if [ -d "$HOME/.claude" ]; then
+  mkdir -p "$HOME/.claude/skills"
+  rm -rf "$HOME/.claude/skills/consumer"
+  cp -R "$HERE/skills/consumer" "$HOME/.claude/skills/consumer"
+  printf '\n<!-- resolved repo path: %s -->\n' "$HERE" >> "$HOME/.claude/skills/consumer/SKILL.md"
+  say "Claude Code refreshed -> ~/.claude/skills/consumer"
+fi
+say ""
+say "install into every other runtime too:"
+say "  bash $HERE/install-everywhere.sh   # Claude Code, OpenClaw, Cursor, VS Code"

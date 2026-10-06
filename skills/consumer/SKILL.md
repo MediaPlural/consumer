@@ -1,13 +1,15 @@
 ---
 name: consumer
-version: 0.2.0
+version: 0.3.0
 description: |
-  Use when consuming ANY knowledge material into structured corpus — courses,
-  videos, books, PDFs, spreadsheets, slide decks, web pages, platform courses
-  (skool/Kajabi/HighLevel/Gumroad/Coursera) — or creating courses, training
-  sites, and explainer videos FROM consumed knowledge. The knowledge consumer:
-  acquire, transcribe (local STT), ingest any format, distill, author, explain,
-  learn. Local-first, stdlib-only, provenance-anchored.
+  Use when consuming ANY knowledge material into a structured, attributed,
+  queryable knowledge graph — courses, videos, audio, books, PDFs, spreadsheets,
+  slide decks, web pages, platform courses (skool/Kajabi/HighLevel/Gumroad/
+  Coursera), email archives, the screen — or creating courses/training sites
+  FROM consumed knowledge. The knowledge consumer: acquire, transcribe (local
+  STT), ingest any format, distill, graph, query (search/semantic/hybrid/
+  filter/insight/maths), author, explain, learn. Local-first, stdlib-only,
+  provenance-anchored, deterministic embeddings.
 triggers:
   - "consume this course"
   - "download all module content"
@@ -38,179 +40,115 @@ writes_to:
 upstream: MediaPlural/consumer
 ---
 
-# Consumer — the knowledge consumer/assimilator
+# Consumer — the knowledge consumer / engine of enlightenment
 
-Repo: `/Users/sharpe/consumer` (umbra: `~/consumer`). Public:
-https://github.com/MediaPlural/consumer (MIT). **The engine of
-enlightenment**: consume, assimilate, integrate everything — then discover
-new insights and synthesis. Courses are ONE input shape; point it at
-websites, zips, gdrive, folders, any knowledge material.
+One engine, every runtime. This SKILL.md speaks the AgentSkills dialect
+(Hermes, Claude Code, OpenClaw, Cursor) and is carried by runtime adapters
+below for non-AgentSkills runtimes (VS Code/Copilot via MCP, any MCP client).
 
-## The loop (three layers)
+Repo: `https://github.com/MediaPlural/consumer` (MIT). Local checkout:
+run `CONSUMER_HOME` discovery below; default `/Users/sharpe/consumer`
+(studio), `~/consumer` (umbra), `tools/consumer` in the refurbapp worktree.
 
-1. **CONSUME**: source.py (point at ANYTHING) → ingest.py (any format) →
-   transcribe.py (local STT) — the acquisition layer
-2. **ASSIMILATE**: distill.py (keywords/concepts/seeds) → graph.py (the
-   vectorized graph: sqlite + FTS5 + deterministic hashed embeddings,
-   concept co-occurrence links, cross-source bridges)
-3. **DISCOVER**: graph.py queries — search / semantic / hybrid / filter /
-   insight / maths — plus create facet (author.py, explain.py, sitegen.py)
-   turning what's assimilated into new works
+## Universal invocation law
 
-## The tools
+**All commands are plain shell commands.** The engine is CLI-first: every
+runtime invokes it the same way regardless of who is driving. Runtime
+differences are only HOW tools are called:
 
-| Stage | Tool | Job |
-|---|---|---|
-| point | `source.py` | ANY source (website/zip/gdrive/dir/course URL) → workspace + auto ingest + auto graph (`--full`) |
-| acquire | `course-dl.py` | whole-course crawl (skool/Kajabi/HighLevel/Gumroad/Coursera/any) |
-| fetch one | `scrape.py` | single URL → media/page + manifest |
-| ingest | `ingest.py` | any-format extraction: csv/xlsx/docx/pptx/epub/pdf/svg/md/srt/vtt + magic-byte sniffing |
-| transcribe | `transcribe.py` | LOCAL STT (MLX Whisper / faster-whisper), word timestamps |
-| distill | `distill.py` | keywords, concepts, next-best-seeds, course map |
-| **graph** | `graph.py` | **the assimilated knowledge graph** — query 5 ways (below) |
-| author | `author.py` | draft courses from corpora (`new`/`from-corpus`/`edit`) |
-| explain | `explain.py` | corpus → rendermill-compatible explainer + storyboard |
-| learn | `sitegen.py` | course site: ToC/Insights/XP/editions/training |
-| insights | `insights.js` | "{Agent} Insights" one-tap panel |
-| trial | `trial.py` | honest trial lifecycle |
-| creds | `creds.py` | segmented credential store (Muse pattern) |
-| refine | `refine.py` | clean/organize/match: dedup chunks + morphological concept merge |
-| **zero-in** | `zero.py` | consume EXACTLY what's on screen: region/window/fullscreen/clipboard -> OCR -> graph |
-| connectors | `connectors.py` | app archives via real auth: gmail (ortie OAuth), imap (app password), drive |
-| **bank** | `bank.py` | the integration bank: connector registry (community manifests), consume + act lanes, auth health |
-| export | `export.py` | ALWAYS-LEAVE law: json/jsonl/csv/md/sqlite/package (INGEST.md convention) |
-| api | `api.py` | graph over HTTP: /search /semantic /hybrid /filter /insight /maths /export |
-| sync | `sync.py` | merge/import-jsonl/import-package — syncable anywhere |
+- **Hermes**: terminal / execute_code tools
+- **Claude Code**: Bash tool (or slash command `/consumer` if installed)
+- **OpenClaw**: shell tool (or slash command via user-invocable skill)
+- **Cursor**: terminal tool (or the .cursor rule)
+- **VS Code/Copilot**: the MCP server (graph_query etc.) or integrated terminal
+- **Any MCP client**: `consumer-mcp` stdio server (5 tools)
 
-## The graph (graph.py) — the discovery engine
+## Locate the engine
 
-```bash
-python3 graph.py ingest CORPUS_DIR --db graph.db           # build from corpus.json+extracted/
-python3 graph.py search "affiliate*" --db graph.db         # FTS (prefix queries need *)
-python3 graph.py semantic "payout structures" --db graph.db  # cosine, no model needed
-python3 graph.py hybrid "recurring commission" --db graph.db # FTS+semantic fused
-python3 graph.py filter --kind text --source csv --db graph.db
-python3 graph.py insight --bridges 15 --orphans --db graph.db # cross-source bridges = discovery
-python3 graph.py maths --db graph.db                       # corpus statistics
+The engine is a directory with bank.py/graph.py/ingest.py. Find it:
+
+```
+[ -d /Users/sharpe/consumer ] && CONSUMER_HOME=/Users/sharpe/consumer
+[ -d "$HOME/consumer" ] && CONSUMER_HOME="$HOME/consumer"
+[ -d "tools/consumer" ] && CONSUMER_HOME="tools/consumer"
+[ -z "$CONSUMER_HOME" ] && CONSUMER_HOME=$(find ~ -maxdepth 3 -name bank.py \
+    -path "*/consumer/bank.py" 2>/dev/null | head -1 | xargs dirname)
 ```
 
-Deterministic hashed embeddings (blake2b token-ngrams → 512-dim, L2-normalized):
-same text = same vector forever, no model download, no API. Concept
-co-occurrence links + **bridges** (concepts spanning ≥2 sources) are where
-new synthesis lives — integration makes visible what no single source says.
+The installer pins the resolved path at install time. The skill dir may be
+carried by a package/zip moved between machines — resolve first, always.
 
-## Point-at-anything (source.py)
+## The three-layer loop
 
-```bash
-python3 source.py https://site.com/docs --workspace ./ws --full --db g.db
-python3 source.py ~/Downloads/course-export.zip --workspace ./ws --full --db g.db
-python3 source.py "https://drive.google.com/file/d/ID/view" --workspace ./ws --full --db g.db
-python3 source.py ~/my-course --workspace ./ws --full --db g.db
+### LAYER 1 — CONSUME
+Point at ANYTHING. `source.py` is the universal front door:
 ```
-`--full` chains ingest + graph automatically. GDrive: public files work;
-private folders → use Drive's "Download as ZIP".
-
-
-
-## Zero-in + app connectors (agent-native triggers)
-
-```bash
-# zero-in — the Foxy-select/Omnisight trigger: consume exactly what's visible
-python3 zero.py --region   --db g.db          # drag a box
-python3 zero.py --window   --db g.db          # click a window
-python3 zero.py --fullscreen --db g.db         # everything
-python3 zero.py --clip      --db g.db --label "note"   # clipboard
-
-# app connectors — "consume my email archive" with real auth
-python3 connectors.py list
-python3 connectors.py auth gmail                        # one-time OAuth (ortie)
-python3 connectors.py export gmail --since 2026-01-01 --limit 500 --db g.db
-python3 connectors.py export imap --host imap.gmail.com --user you@gmail.com --db g.db
-#   IMAP password: env CONSUMER_IMAP_PASS or keychain (security add-generic-password -s consumer-imap)
+python3 source.py <url-or-path> --full          # chains ingest+graph
+python3 source.py course:<course-url>           # platform course crawls
+python3 source.py website:<url>                 # whole-site crawl
+python3 source.py dir:<path> | zip:<file> | gdrive:<id-or-link> | file:<path>
+python3 source.py screen                        # zero-in screen lane
+python3 source.py screen --live --interval 5   # live screen watch
 ```
+Local STT: `transcribe.py` (MLX Whisper large-v3-turbo pinned rev, isolated
+venv at ~/.hermes/venvs/consumer; scrub PYTHONPATH/VIRTUAL_ENV/CONDA in child
+envs; ffmpeg on PATH). OCR lane: `ocr.py` for image-born content. Bank
+connectors: `bank.py list/status/consume/act` (gmail/imap/drive/skool/http/
+zero-in; community manifests bank/connectors/*.json; SAFE runner: shlex-quoted,
+no shell=True).
 
-Credential law unchanged: tokens live in ortie (never in commands/logs);
-IMAP passwords in env/keychain, never argv.
+### LAYER 2 — ASSIMILATE
+ingest.py (10+ formats, magic-sniffed, idempotent) -> distill.py (concepts,
+links, convergence-boosted scoring) -> refine.py (near-dup chunk dedup
+cosine>0.97, morphological concept merge) -> graph.py (vectorized graph:
+sqlite+FTS5+deterministic blake2b 512-dim embeddings; query modes: search/
+semantic/hybrid/filter/insight/maths; bridges = concepts spanning >=2 sources).
 
-## Interop — always able to leave (the always-leave law)
+### LAYER 3 — CREATE + INTEGRATE
+author.py (clusters corpus into course shape), explain.py (step-by-step
+explainers), sitegen.py (responsive site w/ floating ToC, AI summaries,
+game-engine XP hook), insights.js (the {AgentName} Insights widget law),
+export.py (json/jsonl/csv/md/sqlite/package), sync.py (import/merge, dedup),
+api.py (HTTP API, 8 routes, localhost:8765), connectors.py (gmail/imap/drive),
+bank.py (integration bank, consume+act lanes).
 
-The user is never locked in. Everything assimilated exports and syncs freely:
+## Runtime adapters
 
-```bash
-python3 export.py g.db --format package --outdir share/ --title "T"  # INGEST.md manifest + fingerprint
-python3 export.py g.db --format jsonl --out chunks.jsonl            # RAG/vector-db feed
-python3 export.py g.db --format csv --outdir csv/                    # spreadsheets/SQL/BI
-python3 export.py g.db --format sqlite --out copy.db                # standalone db copy
-python3 api.py --db g.db --port 8765                                # HTTP: any tool, any language
-python3 refine.py g.db [--apply]                                    # clean/organize/match
-python3 sync.py import-package share/ --db other.db                 # bring a package in
-python3 sync.py merge left.db right.db --out merged.db              # union with dedup
-```
+- **Hermes** (installed): `~/.hermes/skills/consumer`. Install/refresh:
+  `bash install-skill.sh`; every runtime: `bash install-everywhere.sh`.
+  Install-skill.sh also refreshes the Claude Code install when present.
+  Claude Code: `~/.claude/skills/consumer`. OpenClaw: `~/.openclaw/skills/
+  consumer` (created by install-everywhere.sh; OpenClaw not yet installed on
+  studio, see SKILL.md "OpenClaw" section). Cursor: `.cursor/skills/consumer`
+  (project) or user Agent Store — the .mdc rule (install-everywhere.sh
+  writes `.cursor/rules/consumer.mdc`) fires on intelligent matching.
+  VS Code/Copilot: the MCP server registered in `.vscode/mcp.json` +
+  `settings.json` (user profile) by install-everywhere.sh.
+  See `docs/RUNTIMES.md` for full layout.
+- **Any MCP client** (incl. remote agents): `consumer-mcp` stdio server,
+  `python3 mcp-server.py`, 5 tools (source, transcribe, scrape, distill,
+  graph_query). Graph db: `$CONSUMER_GRAPH_DB` (default `consumer.graph.db`).
 
-Box-to-box: export package on A → move the dir (scp/gdrive/usb) →
-import-package on B. Live: api.py on A, any HTTP client on B. Cross-graph
-cosine works without shipping models (deterministic hashed vectors).
+## Laws
 
-## Setup
+- Local-first, custody law: credentials via segmented store
+  `~/.consumer/creds/<platform>/` (Muse pattern, Broker-only) or keychain;
+  never in code, logs, or argv.
+- Attribution is inbuilt, end-to-end: url + credential-identity + timestamp
+  flow from acquisition -> corpus -> graph -> query results.
+- Deterministic embeddings: same text = same vector forever; cross-graph
+  cosine without shipping models.
+- No DRM/paywall breaking, no trial farming, owned material only.
+- The SAFE runner: shlex-quote every substituted value, argv execution,
+  no shell=True. Bank manifests declare capabilities; add-manifest validates.
 
-```bash
-bash install.sh && export CONSUMER_VENV_PYTHON=~/.hermes/venvs/consumer/bin/python
-python3 tests/test_smoke.py            # green before anything
-bash install-skill.sh                  # load as a Hermes skill
-```
+## Verifications (all live-tested)
 
-## The earned traps (do not re-learn these)
-
-1. **STT child env**: the bridge interpreter runs with PYTHONPATH/VIRTUAL_ENV/
-   CONDA* scrubbed — host kernels leak site-packages into subprocesses and
-   break the venv (verified failure). ffmpeg's dir MUST be on the child PATH.
-2. **Heavy STT runs on umbra, not the daily driver** — the RSS guardian caps
-   heavy classes; batch transcription is heavy-class (fleet doctrine).
-3. **PDF extractor**: linear str.find + single-char-class regex ONLY. The
-   lazy-quantifier version hit catastrophic backtracking (300s+ hang on
-   multi-MB binaries).
-4. **Never trust extensions**: magic-byte sniff first — real course downloads
-   contain a ".pptx" that is really a PDF, a ".docx" that is really UTF-8 text.
-5. **Unique output stems**: flat stems let six formats overwrite each other
-   (silent data loss). Full rel-path stem + collision suffix.
-6. **skool**: lesson URLs are `?md={32-hex}` harvested from classroom page
-   source (no JS); Cloudflare Stream needs `--referer https://www.skool.com`;
-   lesson interiors need member cookies. Public crawl captures course cards.
-7. **Credentials (Muse pattern)**: cookies/tokens live ONLY in
-   `~/.consumer/creds/<platform>/` (0700/0600). creds.Broker is the only
-   reader; manifests record `platform:skool` identity, never values; error
-   text redacted. Never paste cookies into a command line.
-8. **stdlib MozillaCookieJar breaks on real exports** (domain-dot assertion)
-   — the broker's tolerant parse is load-bearing; don't "simplify" it back.
-9. **Trials**: one active per platform (enforced). Consume honestly, cancel
-   on time — trial.py is a lifecycle manager, not a farming tool.
-10. **DOM selectors**: scope to the component (`.lesson[data-lesson=…]`) —
-    global attribute selectors get shadowed by nav/ToC elements (the live
-    browser test caught XP showing 0 with the lesson visibly complete).
-11. **XML from untrusted files**: entity/DOCTYPE guard before parsing
-    (billion-laughs); OOXML never carries DTDs so legit files pass.
-12. **DRM is a hard line**: ingest DRM-free exports (EPUB) fine; DRM'd
-    Kindle formats get byte-registered with conversion hints, never stripped.
-
-## Provenance law
-
-Every stage anchors its outputs: scrape/course-dl → `acquisition.json`
-(url, sha256, tool, timestamp, credential identity); transcribe →
-`<stem>.sha256` + pinned model/revision in the JSON; ingest → `corpus.json`;
-distill reads, never mutates. Any output traces to exact input bytes.
-
-## Agent surfaces
-
-- **MCP**: run `python3 mcp-server.py` — tools `transcribe`, `scrape`,
-  `distill` (initialize/tools/list/tools/call JSON-RPC over stdio).
-- **INGEST.md** in the repo root: machine-readable pipeline map for agents.
-- **Insights widget**: `insights.js` + `Insights.mountAll({agentName})` on any
-  page; data contract: summary/keywords/concepts/next_best (INSIGHTS.md).
-
-## Anti-patterns
-
-- Piping a cookie value into a shell command instead of `creds.py import`
-- Running whole-course transcription on the daily driver when umbra is idle
-- Skipping the smoke suite after touching any tool
-- Vendoring piecemeal (cherry-picks drift the shared schema — re-vendor whole)
-- Presenting author.py drafts as finished writing — they are scaffolds
+- 57/57 tests (studio + Brandon worktree), 55/55 umbra
+- STT: 99.7s video -> 46 segments in 4.5s
+- gmail consume: 15 real messages -> 861 chunks
+- OCR: rendered PNG -> 100% correct text
+- Injection resistance: `; touch /tmp/pwned.txt` stayed literal
+- watch-mode: mid-watch drop detected in 2s
+- Attribution end-to-end: scrape -> search result carries URL + tool
+- Round-trip: build -> export package -> import fresh db -> merge dedup holds
