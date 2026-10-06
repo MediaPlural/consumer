@@ -1,0 +1,24 @@
+{
+  "provider_id": "zero-in",
+  "display_name": "Screen zero-in",
+  "status": "stable",
+  "auth_method": "none",
+  "capabilities": [
+    "read",
+    "act"
+  ],
+  "consume": {
+    "description": "consume clipboard text -> graph",
+    "command": "python3 {here}/zero.py clip --db {db}"
+  },
+  "actions": [
+    {
+      "id": "capture-region",
+      "description": "interactive region capture -> OCR -> graph",
+      "args_schema": {
+        "label": "string"
+      },
+      "command": "python3 {here}/zero.py region --db consumer.graph.db --label {label}"
+    }
+  ]
+}

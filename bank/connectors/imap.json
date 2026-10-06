@@ -1,0 +1,14 @@
+{
+  "provider_id": "imap",
+  "display_name": "Any IMAP mailbox",
+  "status": "stable",
+  "auth_method": "keychain",
+  "keychain_service": "consumer-imap",
+  "capabilities": [
+    "read"
+  ],
+  "consume": {
+    "description": "any mailbox -> attributed graph",
+    "command": "python3 {here}/connectors.py export imap --out ./bank-out/imap --db {db}"
+  }
+}

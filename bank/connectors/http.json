@@ -1,0 +1,23 @@
+{
+  "provider_id": "http",
+  "display_name": "Any URL / website",
+  "status": "stable",
+  "auth_method": "none",
+  "capabilities": [
+    "read"
+  ],
+  "consume": {
+    "description": "page or site -> attributed graph",
+    "command": "python3 {here}/source.py {here}/../README.md --workspace ./bank-out/http-ws --full --db {db}"
+  },
+  "actions": [
+    {
+      "id": "fetch",
+      "description": "single URL -> text (no graph)",
+      "args_schema": {
+        "url": "string"
+      },
+      "command": "python3 {here}/scrape.py {url} --out-dir ./bank-out/http"
+    }
+  ]
+}

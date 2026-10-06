@@ -352,6 +352,36 @@ def test_nango_and_drive():
     check("INTEGRATIONS.md exists", _os.path.exists(os.path.join(HERE, "INTEGRATIONS.md")))
 
 
+
+
+def test_bank():
+    print("integration bank (live)")
+    r = subprocess.run([PY, os.path.join(HERE, "bank.py"), "list"],
+                       capture_output=True, text=True, timeout=120)
+    ok = r.returncode == 0 and json.loads(r.stdout).get("total", 0) >= 6
+    check("bank lists >=6 connectors", ok, r.stderr[-150:])
+    r2 = subprocess.run([PY, os.path.join(HERE, "bank.py"), "status"],
+                        capture_output=True, text=True, timeout=180)
+    if r2.returncode == 0:
+        d = json.loads(r2.stdout)
+        check("bank status honest", isinstance(d["connectors"], list) and len(d["connectors"]) >= 6)
+        check("engine ready flag", d["engine_ready"] is True)
+    # injection resistance: the safe runner quotes args (check CALLS, not
+    # prose — the docstring says "no shell=True" which tripped a naive check)
+    src = open(os.path.join(HERE, "bank.py")).read()
+    calls = [l for l in src.splitlines() if "subprocess.run(" in l and "shell=True" in l]
+    check("no shell=True CALLS in bank", not calls, str(calls[:1]))
+    check("shlex quoting present", "shlex.quote" in src)
+    # manifest validation rejects junk
+    import tempfile
+    tmp = tempfile.mkdtemp()
+    bad = os.path.join(tmp, "bad.json")
+    json.dump({"provider_id": "x"}, open(bad, "w"))
+    r3 = subprocess.run([PY, os.path.join(HERE, "bank.py"), "add-manifest", bad],
+                        capture_output=True, text=True, timeout=60)
+    check("manifest validation rejects", r3.returncode != 0 and "missing" in (r3.stdout or r3.stderr))
+
+
 def main():
     test_cli_shapes()
     test_srt_and_fingerprint()
@@ -367,6 +397,7 @@ def main():
     test_ocr_and_watch()
     test_zero_and_connectors()
     test_nango_and_drive()
+    test_bank()
     print(f"\n{PASS} passed, {FAIL} failed")
     sys.exit(1 if FAIL else 0)
 

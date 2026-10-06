@@ -96,3 +96,13 @@ consumer/
 ## License
 
 MIT. Fork it, extend it, PR it back — that's the point.
+
+## The integration bank
+
+`bank.py` — our answer to IFTTT/Zapier/Composio, with the custody law intact:
+local-first auth (ortie/keychain), optional self-hosted Nango for the long
+tail, community-extendable via declarative manifests
+(`bank/connectors/*.json` — `bank.py add-manifest` validates and installs).
+Consume lanes pull archives into the graph; act lanes run declared actions
+through a shell-injection-proof runner (shlex-quoted args, no shell=True).
+See [INTEGRATIONS.md](INTEGRATIONS.md) for the landscape and our position.

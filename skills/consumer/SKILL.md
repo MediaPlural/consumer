@@ -20,6 +20,8 @@ triggers:
   - "make an explainer from this"
   - "start a trial"
   - "knowledge consumer"
+  - "run a connector"
+  - "bank status"
 tools:
   - terminal
   - execute_code
@@ -74,7 +76,8 @@ websites, zips, gdrive, folders, any knowledge material.
 | creds | `creds.py` | segmented credential store (Muse pattern) |
 | refine | `refine.py` | clean/organize/match: dedup chunks + morphological concept merge |
 | **zero-in** | `zero.py` | consume EXACTLY what's on screen: region/window/fullscreen/clipboard -> OCR -> graph |
-| connectors | `connectors.py` | app archives via real auth: gmail (ortie OAuth), imap (app password) |
+| connectors | `connectors.py` | app archives via real auth: gmail (ortie OAuth), imap (app password), drive |
+| **bank** | `bank.py` | the integration bank: connector registry (community manifests), consume + act lanes, auth health |
 | export | `export.py` | ALWAYS-LEAVE law: json/jsonl/csv/md/sqlite/package (INGEST.md convention) |
 | api | `api.py` | graph over HTTP: /search /semantic /hybrid /filter /insight /maths /export |
 | sync | `sync.py` | merge/import-jsonl/import-package — syncable anywhere |
