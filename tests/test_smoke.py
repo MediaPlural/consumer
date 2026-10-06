@@ -272,6 +272,32 @@ def test_responsive_ui_served():
     check("ui renders attribution", "attribution" in src and "acquire" not in src[:50])
 
 
+
+
+def test_ocr_and_watch():
+    print("ocr lane + watch mode (live)")
+    import tempfile
+    tmp = tempfile.mkdtemp()
+    inbox = os.path.join(tmp, "inbox")
+    os.makedirs(inbox)
+    open(os.path.join(inbox, "n.md"), "w").write(
+        "The funnel machine decides the next move for every lead. " * 6)
+    db = os.path.join(tmp, "k.db")
+    r = subprocess.run([PY, os.path.join(HERE, "watch.py"), "--dir", inbox,
+                        "--db", db, "--once"], capture_output=True, text=True, timeout=300)
+    check("watch --once assimilates", r.returncode == 0 and "graph" in r.stderr, r.stderr[-150:])
+    r2 = subprocess.run([PY, os.path.join(HERE, "graph.py"), "search", "funnel",
+                         "--db", db, "--limit", "1"], capture_output=True, text=True, timeout=60)
+    ok = r2.returncode == 0 and r2.stdout.strip() and json.loads(r2.stdout)
+    check("watched file searchable", bool(ok), r2.stderr[-120:])
+    # ocr.py CLI shape
+    r3 = subprocess.run([PY, os.path.join(HERE, "ocr.py"), "--help"], capture_output=True, text=True, timeout=60)
+    check("ocr.py --help", r3.returncode == 0)
+    # ocr helper present (macOS vision) or tesseract — engine detectable
+    helper = os.path.expanduser("~/.consumer/bin/consumer-ocr")
+    check("ocr engine available", os.path.exists(helper) or shutil.which("tesseract") is not None)
+
+
 def main():
     test_cli_shapes()
     test_srt_and_fingerprint()
@@ -284,6 +310,7 @@ def main():
     test_export_sync()
     test_attribution_flow()
     test_responsive_ui_served()
+    test_ocr_and_watch()
     print(f"\n{PASS} passed, {FAIL} failed")
     sys.exit(1 if FAIL else 0)
 
