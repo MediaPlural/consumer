@@ -1,0 +1,42 @@
+{
+  "provider_id": "repo",
+  "display_name": "GitHub (gh CLI)",
+  "status": "stable",
+  "auth_method": "none",
+  "capabilities": [
+    "act"
+  ],
+  "notes": "Auth is delegated to the gh CLI, which is already authed on this box via its keyring. No token ever enters this manifest, argv, or a log. All actions run as literal argv through the SAFE runner (no shell=True).",
+  "actions": [
+    {
+      "id": "create-issue",
+      "description": "create a GitHub issue with title/body",
+      "args_schema": {
+        "repo": "string (OWNER/REPO)",
+        "title": "string",
+        "body": "string (optional)"
+      },
+      "command": "python3 {here}/bank/scripts/gh_issue.py create-issue --repo {repo} --title {title} --body {body}"
+    },
+    {
+      "id": "list-issues",
+      "description": "list issues in a repo (read lane)",
+      "args_schema": {
+        "repo": "string (OWNER/REPO)",
+        "state": "string (open|closed|all, optional)",
+        "limit": "number (optional)"
+      },
+      "command": "gh issue list --repo {repo} --state {state} --limit {limit}"
+    },
+    {
+      "id": "close-issue",
+      "description": "close a GitHub issue by number",
+      "args_schema": {
+        "repo": "string (OWNER/REPO)",
+        "number": "string",
+        "comment": "string (required by the template — pass \"\" to close without a comment)"
+      },
+      "command": "python3 {here}/bank/scripts/gh_issue.py close-issue --repo {repo} --number {number} --comment {comment}"
+    }
+  ]
+}

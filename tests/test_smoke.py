@@ -382,6 +382,100 @@ def test_bank():
     check("manifest validation rejects", r3.returncode != 0 and "missing" in (r3.stdout or r3.stderr))
 
 
+def test_bank_act_lanes():
+    print("bank act lanes (x / repo / local)")
+    # manifests installed and declared
+    r = subprocess.run([PY, os.path.join(HERE, "bank.py"), "list"],
+                       capture_output=True, text=True, timeout=120)
+    bank = {c["id"]: c for c in json.loads(r.stdout)["bank"]}
+    check("x connector listed", "x" in bank and "write-draft" in bank["x"]["actions"])
+    check("repo connector listed", "repo" in bank and
+          all(a in bank["repo"]["actions"] for a in ("create-issue", "list-issues", "close-issue")))
+    check("local connector listed", "local" in bank and
+          all(a in bank["local"]["actions"] for a in ("open-url", "copy-clipboard", "notify")))
+    check("x honest needs-auth", bank["x"]["status"] == "needs-auth")
+    # every action declares an args_schema
+    ms = json.load(open(os.path.join(HERE, "bank", "connectors", c + ".json"))) if False else None
+    for cid in ("x", "repo", "local"):
+        m = json.load(open(os.path.join(HERE, "bank", "connectors", cid + ".json")))
+        check(f"{cid} actions all have args_schema",
+              all(a.get("args_schema") for a in m["actions"]))
+    # x: draft written, never posts (no network)
+    r = subprocess.run([PY, os.path.join(HERE, "bank.py"), "act", "x", "write-draft",
+                        "--args", json.dumps({"text": "smoke test draft"})],
+                       capture_output=True, text=True, timeout=120)
+    check("x write-draft runs", r.returncode == 0 and "draft written" in r.stdout,
+          r.stderr[-150:])
+    check("x draft announces needs-auth", "needs-auth" in r.stdout)
+    # local: clipboard round-trip + notify + open-url
+    r = subprocess.run([PY, os.path.join(HERE, "bank.py"), "act", "local", "copy-clipboard",
+                        "--args", json.dumps({"text": "smoke clipboard ok"})],
+                       capture_output=True, text=True, timeout=120)
+    clip = subprocess.run(["pbpaste"], capture_output=True, text=True, timeout=30)
+    check("local copy-clipboard round-trip",
+          r.returncode == 0 and clip.stdout.strip() == "smoke clipboard ok")
+    r = subprocess.run([PY, os.path.join(HERE, "bank.py"), "act", "local", "notify",
+                        "--args", json.dumps({"message": "smoke", "title": "t"})],
+                       capture_output=True, text=True, timeout=120)
+    check("local notify runs", r.returncode == 0, r.stderr[-150:])
+    r = subprocess.run([PY, os.path.join(HERE, "bank.py"), "act", "local", "open-url",
+                        "--args", json.dumps({"url": "https://example.com"})],
+                       capture_output=True, text=True, timeout=120)
+    check("local open-url runs", r.returncode == 0, r.stderr[-150:])
+    # repo: gh present + create/close a live issue only when gh is authed
+    if shutil.which("gh"):
+        st = subprocess.run(["gh", "auth", "status"], capture_output=True, text=True, timeout=60)
+        if st.returncode == 0:
+            repo = "MediaPlural/consumer"
+            title = "[smoke] bank act-lane test (auto-closed)"
+            r = subprocess.run([PY, os.path.join(HERE, "bank.py"), "act", "repo", "create-issue",
+                                "--args", json.dumps({"repo": repo, "title": title,
+                                                      "body": "smoke test — closed immediately"})],
+                               capture_output=True, text=True, timeout=180)
+            ok = r.returncode == 0 and "issues/" in r.stdout
+            check("repo create-issue live", ok, (r.stdout + r.stderr)[-200:])
+            if ok:
+                num = r.stdout.strip().splitlines()[-1].rsplit("/", 1)[-1]
+                r2 = subprocess.run([PY, os.path.join(HERE, "bank.py"), "act", "repo", "close-issue",
+                                     "--args", json.dumps({"repo": repo, "number": num,
+                                                           "comment": "smoke done"})],
+                                    capture_output=True, text=True, timeout=180)
+                check("repo close-issue live", r2.returncode == 0, (r2.stdout + r2.stderr)[-200:])
+        else:
+            print("  (gh not authed — live repo tests skipped)")
+    else:
+        print("  (gh not installed — live repo tests skipped)")
+
+
+def test_bank_act_injection():
+    print("bank act-lane injection resistance (live)")
+    pwn = "/tmp/pwned2.txt"
+    if os.path.exists(pwn):
+        os.remove(pwn)
+    payload = "; touch /tmp/pwned2.txt"
+    cases = [
+        ("local", "open-url", {"url": "'" + payload}),
+        ("local", "copy-clipboard", {"text": "'" + payload}),
+        ("local", "notify", {"message": "'" + payload, "title": "t"}),
+        ("x", "write-draft", {"text": "'" + payload}),
+        ("repo", "list-issues", {"repo": "MediaPlural/consumer" + payload,
+                                 "state": "all", "limit": "1"}),
+        ("repo", "close-issue", {"repo": "MediaPlural/consumer", "number": "1" + payload,
+                                 "comment": "x" + payload}),
+    ]
+    for conn, act_name, args in cases:
+        r = subprocess.run([PY, os.path.join(HERE, "bank.py"), "act", conn, act_name,
+                            "--args", json.dumps(args)],
+                           capture_output=True, text=True, timeout=180)
+        check(f"injection literal {conn}.{act_name}", not os.path.exists(pwn),
+              f"rc={r.returncode} pwned!")
+        if os.path.exists(pwn):
+            os.remove(pwn)
+    # clipboard copy proves the payload arrived as literal text
+    clip = subprocess.run(["pbpaste"], capture_output=True, text=True, timeout=30)
+    check("clipboard holds literal payload", payload in clip.stdout)
+
+
 def main():
     test_cli_shapes()
     test_srt_and_fingerprint()
@@ -398,6 +492,8 @@ def main():
     test_zero_and_connectors()
     test_nango_and_drive()
     test_bank()
+    test_bank_act_lanes()
+    test_bank_act_injection()
     print(f"\n{PASS} passed, {FAIL} failed")
     sys.exit(1 if FAIL else 0)
 

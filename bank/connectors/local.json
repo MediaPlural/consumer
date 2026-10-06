@@ -1,0 +1,37 @@
+{
+  "provider_id": "local",
+  "display_name": "Local macOS QoL (open / clipboard / notify)",
+  "status": "stable",
+  "auth_method": "none",
+  "capabilities": [
+    "act"
+  ],
+  "notes": "Safe local actions on this box: open a URL in the default browser, copy text to the clipboard, send a macOS notification. All run through the SAFE runner as literal argv — no shell=True, clipboard text travels via pbcopy stdin, notification text via oscript argv (never string-interpolated into the script source).",
+  "actions": [
+    {
+      "id": "open-url",
+      "description": "open a URL (or file path) in the default browser/handler",
+      "args_schema": {
+        "url": "string"
+      },
+      "command": "open {url}"
+    },
+    {
+      "id": "copy-clipboard",
+      "description": "copy text to the macOS clipboard (pbcopy stdin)",
+      "args_schema": {
+        "text": "string"
+      },
+      "command": "python3 {here}/bank/scripts/clip_copy.py --text {text}"
+    },
+    {
+      "id": "notify",
+      "description": "send a macOS notification (osascript, argv-passed)",
+      "args_schema": {
+        "message": "string",
+        "title": "string (optional)"
+      },
+      "command": "osascript {here}/bank/scripts/notify.applescript {message} {title}"
+    }
+  ]
+}
