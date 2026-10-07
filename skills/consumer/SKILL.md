@@ -116,6 +116,31 @@ export.py (json/jsonl/csv/md/sqlite/package), sync.py (import/merge, dedup),
 api.py (HTTP API, 8 routes, localhost:8765), connectors.py (gmail/imap/drive),
 bank.py (integration bank, consume+act lanes).
 
+**Course surfaces (sitegen, gated behind optional course-map.json** placed in
+or beside the distilled dir — legacy corpora render byte-identical without it).
+The map accepts both the consumer-v1 shape and the HighLevel ingest shape
+(hl_course.py output; lessons title-matched, transcript order wins). A map
+unlocks: interactive course-map TOC with per-lesson checkboxes; three-state
+lesson visibility (draft hidden from nav+unlinked / published / locked with
+unlock-condition text and disabled complete); client-side drip (drip_days,
+enrollment = first visit); funnel lessons (contentType "funnel", config under
+a `funnel:` key with url+label — action-card CTA at video-lesson visual
+weight); materials chips (materials[] with type icons); unified progress
+(per-category %, counts, timestamps — the SAME consumer-progress-v1 store the
+XP hook reads, so % and XP never diverge); a printable certificate unlocked
+at 100%; offer.json emitted beside the site (offer/consumer-v1 — access
+packaging separate from content; --no-offer suppresses); per-lesson comments
+affordance with visible/hidden/locked states (honest no-backend stub).
+
+**HighLevel pre-pass:** hl_course.py — `list` / `map PRODUCT_ID
+--location-id` / `status`. Courses v3 (Version:v3 header, Bearer, per-category
+lesson fetches, cursor pagination, 80/min limiter); emits a course-dl-compatible
+ingest dir + course-map.json with UUIDs/sequence/lock state. Token ONLY from
+~/.consumer/creds/highlevel/token or CONSUMER_HL_TOKEN env — never printed;
+`status` exits 1 with exact remediation when absent (build honest-needs-auth,
+verify via mocked-transport tests, never fake 200s). Drip day-counts are NOT
+API-readable — emit null with a note, don't invent numbers.
+
 ## Runtime adapters
 
 - **Hermes** (installed): `~/.hermes/skills/consumer`. Install/refresh:
