@@ -3,9 +3,7 @@
   "display_name": "Any URL / website",
   "status": "stable",
   "auth_method": "none",
-  "capabilities": [
-    "read"
-  ],
+  "capabilities": ["read"],
   "consume": {
     "description": "page or site -> attributed graph",
     "command": "python3 {here}/source.py {here}/../README.md --workspace ./bank-out/http-ws --full --db {db}"

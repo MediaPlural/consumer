@@ -13,7 +13,7 @@
 **Consumer side (this repo, `sitegen.py`):** every generated course site calls
 
 ```js
-if (window.consumerGameEngine) window.consumerGameEngine({xp, level, done});
+if (window.consumerGameEngine) window.consumerGameEngine({ xp, level, done });
 ```
 
 after each `refresh()` — where `xp` is total earned XP (sum of `data-xp` on
@@ -24,15 +24,15 @@ and `done` is the map `{lesson_id: completed_at_millis}` persisted to
 **Guild side (viiy-hq, read-only):** the guild progression codex defines the
 canonical objects:
 
-| Canonical concept | Source (viiy-hq, read-only) |
-|---|---|
-| Quest tiers: **Trivial / Minor / Standard / Major / Legendary / Mythic** with XP floors 5–15 / 25–75 / 100–300 / 500–1500 / 3000–10000 / 25000+ | `game/design/XP-REWARD-SYSTEM.md` §1.2.1 |
-| Quality grades: **Flawless ×1.5 / Excellent ×1.2 / Standard ×1.0 / Partial ×0.5** | `game/design/XP-REWARD-SYSTEM.md` §1.2.1 |
-| Reward-event resolution sequence (VERIFY → OWN → BASE_XP → …) | `game/design/XP-REWARD-SYSTEM.md` §6.1 |
-| Stage/rank ladder: 18 stages, Level 1–100 per stage, bands **Early (1–25) / Middle (26–50) / Late (51–75) / Peak (76–100)** | `game/design/PROGRESSION-STATS-CODEX-v2.md` §1.2, §1.4 |
-| Twin-Realm reading: **worldly_rank** vs **soul_stage** — one stage number, read twice | `game/design/PROGRESSION-STATS-CODEX-v2.md` §2 |
-| Member identity: **member_uuid**, **rank**, **rank_level** (guild credential JWT fields) | `guild/identity-tags/backend/SIGNING.md` §payload, `ENROLLMENT-FLOW.md` (rank, rank_level) |
-| Ownership Gate (P-5): an award event closes only on a principal-performed act — the consumer site's "Mark complete" click **is** that act for lesson events | `game/design/XP-REWARD-SYSTEM.md` §6.1 step 1a |
+| Canonical concept                                                                                                                                           | Source (viiy-hq, read-only)                                                                |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| Quest tiers: **Trivial / Minor / Standard / Major / Legendary / Mythic** with XP floors 5–15 / 25–75 / 100–300 / 500–1500 / 3000–10000 / 25000+             | `game/design/XP-REWARD-SYSTEM.md` §1.2.1                                                   |
+| Quality grades: **Flawless ×1.5 / Excellent ×1.2 / Standard ×1.0 / Partial ×0.5**                                                                           | `game/design/XP-REWARD-SYSTEM.md` §1.2.1                                                   |
+| Reward-event resolution sequence (VERIFY → OWN → BASE_XP → …)                                                                                               | `game/design/XP-REWARD-SYSTEM.md` §6.1                                                     |
+| Stage/rank ladder: 18 stages, Level 1–100 per stage, bands **Early (1–25) / Middle (26–50) / Late (51–75) / Peak (76–100)**                                 | `game/design/PROGRESSION-STATS-CODEX-v2.md` §1.2, §1.4                                     |
+| Twin-Realm reading: **worldly_rank** vs **soul_stage** — one stage number, read twice                                                                       | `game/design/PROGRESSION-STATS-CODEX-v2.md` §2                                             |
+| Member identity: **member_uuid**, **rank**, **rank_level** (guild credential JWT fields)                                                                    | `guild/identity-tags/backend/SIGNING.md` §payload, `ENROLLMENT-FLOW.md` (rank, rank_level) |
+| Ownership Gate (P-5): an award event closes only on a principal-performed act — the consumer site's "Mark complete" click **is** that act for lesson events | `game/design/XP-REWARD-SYSTEM.md` §6.1 step 1a                                             |
 
 ## 2. Event envelope
 
@@ -48,20 +48,20 @@ Every event the adapter emits is:
 
 ### 2.1 Canonical payload fields (exact names)
 
-| Field | Type | Present on | Meaning (guild-codex source) |
-|---|---|---|---|
-| `member_uuid` | string \| null | all | Guild member UUID from the identity-tags credential (`SIGNING.md` payload `sub`/uuid); null if the site doesn't know the member yet |
-| `source` | string | all | Always `"consumer"` for this adapter — the guild ledger's provenance axis |
-| `quest_id` | string \| null | lesson_complete, xp_gain | Consumer lesson id (`lesson-01`, …) mapped onto the guild quest-completion event (XP-REWARD-SYSTEM §1.2.1) |
-| `quest_tier` | string \| null | lesson_complete, xp_gain | Canonical tier name by lesson XP: <25 → `Trivial`, ≥25 → `Minor`, ≥100 → `Standard`, ≥500 → `Major`, ≥3000 → `Legendary`, ≥25000 → `Mythic` |
-| `quality` | string \| null | lesson_complete, xp_gain | Always `Standard` (×1.0) — consumer completions are self-marked; the guild's VERIFY step (§6.1) upgrades it |
-| `xp_delta` | number \| null | lesson_complete, xp_gain | XP gained by this event (lesson `data-xp` / total delta) |
-| `xp_total` | number | all | Consumer-side cumulative XP at event time |
-| `level` | number | all | Site-local level at event time (guild `level` is per-stage 1–100; see §4 caveats) |
-| `rank` | string \| null | all | Guild worldly rank name (Codex v2 §2 Twin Realm) — null here; assigned guild-side on ingest |
-| `rank_level` | number \| null | all | Guild rank level (identity-tags credential field) — null here; assigned guild-side |
-| `band` | string \| null | all | Codex v2 §1.4 band: `Early` (level <26), `Middle` (26–50), `Late` (51–75), `Peak` (≥76) — null on events that carry no band |
-| `occurred_at` | string (ISO 8601) | all | Lesson completion timestamp (`done[id]`) or event time |
+| Field         | Type              | Present on               | Meaning (guild-codex source)                                                                                                                |
+| ------------- | ----------------- | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| `member_uuid` | string \| null    | all                      | Guild member UUID from the identity-tags credential (`SIGNING.md` payload `sub`/uuid); null if the site doesn't know the member yet         |
+| `source`      | string            | all                      | Always `"consumer"` for this adapter — the guild ledger's provenance axis                                                                   |
+| `quest_id`    | string \| null    | lesson_complete, xp_gain | Consumer lesson id (`lesson-01`, …) mapped onto the guild quest-completion event (XP-REWARD-SYSTEM §1.2.1)                                  |
+| `quest_tier`  | string \| null    | lesson_complete, xp_gain | Canonical tier name by lesson XP: <25 → `Trivial`, ≥25 → `Minor`, ≥100 → `Standard`, ≥500 → `Major`, ≥3000 → `Legendary`, ≥25000 → `Mythic` |
+| `quality`     | string \| null    | lesson_complete, xp_gain | Always `Standard` (×1.0) — consumer completions are self-marked; the guild's VERIFY step (§6.1) upgrades it                                 |
+| `xp_delta`    | number \| null    | lesson_complete, xp_gain | XP gained by this event (lesson `data-xp` / total delta)                                                                                    |
+| `xp_total`    | number            | all                      | Consumer-side cumulative XP at event time                                                                                                   |
+| `level`       | number            | all                      | Site-local level at event time (guild `level` is per-stage 1–100; see §4 caveats)                                                           |
+| `rank`        | string \| null    | all                      | Guild worldly rank name (Codex v2 §2 Twin Realm) — null here; assigned guild-side on ingest                                                 |
+| `rank_level`  | number \| null    | all                      | Guild rank level (identity-tags credential field) — null here; assigned guild-side                                                          |
+| `band`        | string \| null    | all                      | Codex v2 §1.4 band: `Early` (level <26), `Middle` (26–50), `Late` (51–75), `Peak` (≥76) — null on events that carry no band                 |
+| `occurred_at` | string (ISO 8601) | all                      | Lesson completion timestamp (`done[id]`) or event time                                                                                      |
 
 Adapter-added (consumer-provenance, non-canonical): `course` — the site title,
 carried on `lesson_complete` payloads.
@@ -102,7 +102,7 @@ expected to:
 - apply the P-5 Ownership Gate: the consumer "Mark complete" click is the
   principal-performed act; a replayed queue event older than the recorded
   act must not double-award (idempotency key: `source + quest_id +
-  occurred_at`).
+occurred_at`).
 
 ## 4. Known mapping caveats (deliberate, documented)
 

@@ -3,9 +3,7 @@
   "display_name": "GitHub (gh CLI)",
   "status": "stable",
   "auth_method": "none",
-  "capabilities": [
-    "act"
-  ],
+  "capabilities": ["act"],
   "notes": "Auth is delegated to the gh CLI, which is already authed on this box via its keyring. No token ever enters this manifest, argv, or a log. All actions run as literal argv through the SAFE runner (no shell=True).",
   "actions": [
     {

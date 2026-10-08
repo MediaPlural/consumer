@@ -7,19 +7,19 @@
 
 ## The landscape (verified 2026-10-06)
 
-| Platform | Model | Credential custody | Our read |
-|---|---|---|---|
-| **Composio** | 1,000+ connectors, managed OAuth + tool execution for agents | **Composio-managed** (cloud) | The action-infra leader — but closed, and its 2025 breach (≈5,001 GitHub OAuth tokens + 5,241 API keys exposed via an intercepted employee Gmail OAuth token) is the exact failure mode local credential custody exists to prevent |
-| **Nango** | open-source OAuth infra, 400+ prebuilt provider configs, self-host | **You own** (your instance, your DB) | The only platform matching our philosophy — open, self-hostable, credentials never leave your box |
-| **Merge.dev** | unified API per category (HR/payroll/etc.) | Merge-managed | Category-normalization play; different problem than ours |
-| **Pipedream** | 3,000+ APIs, managed auth, event triggers | Pipedream-managed | Excellent action/event infra; cloud custody again |
-| **Ampersand** | real-time native integrations | Ampersand-managed | Write-path infra |
+| Platform      | Model                                                              | Credential custody                   | Our read                                                                                                                                                                                                                           |
+| ------------- | ------------------------------------------------------------------ | ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Composio**  | 1,000+ connectors, managed OAuth + tool execution for agents       | **Composio-managed** (cloud)         | The action-infra leader — but closed, and its 2025 breach (≈5,001 GitHub OAuth tokens + 5,241 API keys exposed via an intercepted employee Gmail OAuth token) is the exact failure mode local credential custody exists to prevent |
+| **Nango**     | open-source OAuth infra, 400+ prebuilt provider configs, self-host | **You own** (your instance, your DB) | The only platform matching our philosophy — open, self-hostable, credentials never leave your box                                                                                                                                  |
+| **Merge.dev** | unified API per category (HR/payroll/etc.)                         | Merge-managed                        | Category-normalization play; different problem than ours                                                                                                                                                                           |
+| **Pipedream** | 3,000+ APIs, managed auth, event triggers                          | Pipedream-managed                    | Excellent action/event infra; cloud custody again                                                                                                                                                                                  |
+| **Ampersand** | real-time native integrations                                      | Ampersand-managed                    | Write-path infra                                                                                                                                                                                                                   |
 
 ## Our lane vs theirs
 
-- **Their lane: ACTION** — an agent *does* things in apps (send email, create
+- **Their lane: ACTION** — an agent _does_ things in apps (send email, create
   ticket, post message). Tool-calling infrastructure.
-- **Our lane: CONSUMPTION** — archives flow *in* and become a queryable,
+- **Our lane: CONSUMPTION** — archives flow _in_ and become a queryable,
   attributed knowledge graph. Assimilation infrastructure.
 
 The only overlap is OAuth plumbing — and that we adopt rather than rebuild.

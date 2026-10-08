@@ -18,21 +18,26 @@ After `distill.py` produces a corpus, file one brain page per course under
 **Distilled:** YYYY-MM-DD, consumer v0.1
 
 ## Summary
+
 {2–4 sentences: what the course teaches, who it's for}
 
 ## Keywords (from distill keywords.json)
+
 {top 20 terms with tf/documents — these feed the keyword lanes}
 
 ## Concepts
+
 {top concepts from concepts.json}
 
 ## Next-best-sentence seeds
+
 {top seeds — candidate openers for marketing surfaces, per the
 SELF-IDENTIFICATION-LOOP-SPEC and RESEARCH-TO-CREATIVE-LOOP-SPEC}
 
 ## Lesson index
+
 - [Lesson 1 — title](lesson-01) (4.2 min) — transcript: media/courses/{slug}/lesson-01.txt
-...
+  ...
 ```
 
 Filing rule: follow `skills/_brain-filing-rules.md` — file by primary subject (the course), not by format; entity extraction + back-links per media-ingest phases.

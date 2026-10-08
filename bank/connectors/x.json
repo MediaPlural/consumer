@@ -3,9 +3,7 @@
   "display_name": "X (x.com) — draft-only, needs-auth",
   "status": "needs-auth",
   "auth_method": "none",
-  "capabilities": [
-    "act"
-  ],
+  "capabilities": ["act"],
   "notes": "HONEST STATUS: x.com posting requires API OAuth with write scope, which is NOT configured. No scraping bypass exists or will be added. The only declared action writes a local draft file for a human to review and post manually — NEVER auto-post without a human gate.",
   "actions": [
     {

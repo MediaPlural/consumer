@@ -4,9 +4,7 @@
   "status": "beta",
   "auth_method": "ortie",
   "ortie_account": "adhacks",
-  "capabilities": [
-    "read"
-  ],
+  "capabilities": ["read"],
   "consume": {
     "description": "docs/sheets/pdfs -> attributed graph (needs drive.readonly scope)",
     "command": "python3 {here}/connectors.py export drive --out ./bank-out/drive --db {db}"

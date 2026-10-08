@@ -85,7 +85,9 @@ carried by a package/zip moved between machines — resolve first, always.
 ## The three-layer loop
 
 ### LAYER 1 — CONSUME
+
 Point at ANYTHING. `source.py` is the universal front door:
+
 ```
 python3 source.py <url-or-path> --full          # chains ingest+graph
 python3 source.py course:<course-url>           # platform course crawls
@@ -94,14 +96,16 @@ python3 source.py dir:<path> | zip:<file> | gdrive:<id-or-link> | file:<path>
 python3 source.py screen                        # zero-in screen lane
 python3 source.py screen --live --interval 5   # live screen watch
 ```
+
 Local STT: `transcribe.py` (MLX Whisper large-v3-turbo pinned rev, isolated
 venv at ~/.hermes/venvs/consumer; scrub PYTHONPATH/VIRTUAL_ENV/CONDA in child
 envs; ffmpeg on PATH). OCR lane: `ocr.py` for image-born content. Bank
 connectors: `bank.py list/status/consume/act` (gmail/imap/drive/skool/http/
-zero-in; community manifests bank/connectors/*.json; SAFE runner: shlex-quoted,
+zero-in; community manifests bank/connectors/\*.json; SAFE runner: shlex-quoted,
 no shell=True).
 
 ### LAYER 2 — ASSIMILATE
+
 ingest.py (10+ formats, magic-sniffed, idempotent) -> distill.py (concepts,
 links, convergence-boosted scoring) -> refine.py (near-dup chunk dedup
 cosine>0.97, morphological concept merge) -> graph.py (vectorized graph:
@@ -109,6 +113,7 @@ sqlite+FTS5+deterministic blake2b 512-dim embeddings; query modes: search/
 semantic/hybrid/filter/insight/maths; bridges = concepts spanning >=2 sources).
 
 ### LAYER 3 — CREATE + INTEGRATE
+
 author.py (clusters corpus into course shape), explain.py (step-by-step
 explainers), sitegen.py (responsive site w/ floating ToC, AI summaries,
 game-engine XP hook), insights.js (the {AgentName} Insights widget law),
@@ -147,7 +152,7 @@ API-readable — emit null with a note, don't invent numbers.
   `bash install-skill.sh`; every runtime: `bash install-everywhere.sh`.
   Install-skill.sh also refreshes the Claude Code install when present.
   Claude Code: `~/.claude/skills/consumer`. OpenClaw: `~/.openclaw/skills/
-  consumer` (created by install-everywhere.sh; OpenClaw not yet installed on
+consumer` (created by install-everywhere.sh; OpenClaw not yet installed on
   studio, see SKILL.md "OpenClaw" section). Cursor: `.cursor/skills/consumer`
   (project) or user Agent Store — the .mdc rule (install-everywhere.sh
   writes `.cursor/rules/consumer.mdc`) fires on intelligent matching.

@@ -3,9 +3,7 @@
   "display_name": "Skool courses",
   "status": "stable",
   "auth_method": "none",
-  "capabilities": [
-    "read"
-  ],
+  "capabilities": ["read"],
   "consume": {
     "description": "public classroom crawl (member: creds.py import skool first)",
     "command": "python3 {here}/course-dl.py https://www.skool.com/admins --platform skool --out-dir ./bank-out/skool"

@@ -53,18 +53,19 @@ python3 distill.py ./course/transcripts --out-dir ./course/distilled
 ```
 
 There is also a single-command wrapper for the whole pipeline:
+
 ```bash
 python3 consumer.py "URL-or-directory" --tag my-course     # acquire → transcribe → distill
 ```
 
 ## Provenance & pins
 
-| Component | Pin | Why |
-|---|---|---|
+| Component           | Pin                                                                                                                      | Why                                                                                |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------- |
 | STT (Apple Silicon) | `mlx-whisper==0.4.3`, model `mlx-community/whisper-large-v3-turbo` @ revision `a4aaeec0636e6fef84abdcbe3544cb2bf7e9f6fb` | exact model+revision provenance, verified live (99.7s video → 46 segments in 4.5s) |
-| STT (Linux/other) | `faster-whisper` (latest) | CTranslate2 CPU inference; same output shape |
-| Acquisition | `yt-dlp` (latest) | moving target by design; acquisition manifest records what ran |
-| Everything else | Python stdlib | adopt-don't-rebuild law: zero API keys, zero cloud calls in core |
+| STT (Linux/other)   | `faster-whisper` (latest)                                                                                                | CTranslate2 CPU inference; same output shape                                       |
+| Acquisition         | `yt-dlp` (latest)                                                                                                        | moving target by design; acquisition manifest records what ran                     |
+| Everything else     | Python stdlib                                                                                                            | adopt-don't-rebuild law: zero API keys, zero cloud calls in core                   |
 
 ## Directory layout
 
@@ -97,12 +98,12 @@ consumer/
 
 MIT. Fork it, extend it, PR it back — that's the point.
 
-
 ## Paste-ready: run it anywhere
 
 One package, four paste surfaces — terminal, any AI, any coding agent, any browser. All equivalent.
 
 **Terminal (macOS / Linux):**
+
 ```bash
 git clone https://github.com/MediaPlural/consumer ~/consumer && \
   bash ~/consumer/install.sh && \
@@ -110,11 +111,13 @@ git clone https://github.com/MediaPlural/consumer ~/consumer && \
 ```
 
 **Any AI agent (Claude, ChatGPT, Viiy, any MCP client):**
+
 ```
 Read https://ingest.fm/consumer/INGEST.md and execute its load order; it routes everything else.
 ```
 
 **Claude Code / Cursor / OpenClaw / VS Code / Hermes — one script detects and installs for every runtime present:**
+
 ```bash
 git clone https://github.com/MediaPlural/consumer ~/consumer && bash ~/consumer/install-everywhere.sh
 ```

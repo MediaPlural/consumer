@@ -3,14 +3,14 @@
 The consumer is CLI-first: the engine is its commands. Skills, rules, and MCP
 servers are thin adapters that tell each runtime how to invoke the same CLI.
 
-| Runtime | Adapter shape | Install target |
-|---|---|---|
-| Hermes | AgentSkills SKILL.md | `~/.hermes/skills/consumer` |
-| Claude Code | AgentSkills SKILL.md (+ `/consumer` slash command) | `~/.claude/skills/consumer` |
-| OpenClaw | AgentSkills SKILL.md (user-invocable slash command) | `~/.openclaw/skills/consumer` |
-| Cursor | SKILL.md (project or user store) + `.mdc` rule | `.cursor/skills/consumer` + `.cursor/rules/consumer.mdc` |
-| VS Code/Copilot | MCP server + rule | `.vscode/mcp.json` + user settings |
-| Any MCP client | stdio server `mcp-server.py` (5 tools) | client's MCP config |
+| Runtime         | Adapter shape                                       | Install target                                           |
+| --------------- | --------------------------------------------------- | -------------------------------------------------------- |
+| Hermes          | AgentSkills SKILL.md                                | `~/.hermes/skills/consumer`                              |
+| Claude Code     | AgentSkills SKILL.md (+ `/consumer` slash command)  | `~/.claude/skills/consumer`                              |
+| OpenClaw        | AgentSkills SKILL.md (user-invocable slash command) | `~/.openclaw/skills/consumer`                            |
+| Cursor          | SKILL.md (project or user store) + `.mdc` rule      | `.cursor/skills/consumer` + `.cursor/rules/consumer.mdc` |
+| VS Code/Copilot | MCP server + rule                                   | `.vscode/mcp.json` + user settings                       |
+| Any MCP client  | stdio server `mcp-server.py` (5 tools)              | client's MCP config                                      |
 
 ## Install / refresh all runtimes
 
@@ -26,6 +26,7 @@ installed on studio; when it lands, `install-everywhere.sh` picks it up.
 ## Remote/agent invocation
 
 Any remote agent (Viiy squad, Brandon's stack) can use the engine via:
+
 1. The MCP stdio server: `python3 mcp-server.py` (tools: source, transcribe,
    scrape, distill, graph_query; graph db via CONSUMER_GRAPH_DB env)
 2. The HTTP API: `api.py` (8 routes; /search /semantic /hybrid /filter

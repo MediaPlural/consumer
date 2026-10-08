@@ -3,10 +3,7 @@
   "display_name": "Screen zero-in",
   "status": "stable",
   "auth_method": "none",
-  "capabilities": [
-    "read",
-    "act"
-  ],
+  "capabilities": ["read", "act"],
   "consume": {
     "description": "consume clipboard text -> graph",
     "command": "python3 {here}/zero.py clip --db {db}"

@@ -45,7 +45,7 @@ agent name:
 Or mark surfaces declaratively:
 
 ```html
-<article data-insights data-insights-agent="Foxy"> ... </article>
+<article data-insights data-insights-agent="Foxy">...</article>
 ```
 
 - `data-insights` — mount a panel for this element

@@ -41,14 +41,14 @@
   joining. Join first, then export cookies — the classroom tree appears for
   members.
 - **Free-tier pages crawl fine without login**: community/classroom/calendar/
-  members pages capture; course *interiors* don't.
+  members pages capture; course _interiors_ don't.
 - **Cloudflare Stream 403 without referer**: course-dl's `save_media` adds
   `--referer https://www.skool.com` on skool URLs automatically.
 - **Lesson titles are thin**: `?md=` pages render title + description for
   members; the meat is the video — transcription is where the content becomes
   text.
 - If yt-dlp fails on a lesson, try `yt-dlp --cookies-from-browser chrome
-  "<lesson-url>"` manually first — browser-cookies solve most 403s.
+"<lesson-url>"` manually first — browser-cookies solve most 403s.
 
 ## Verified (2026-10-06, this recipe's first run)
 
@@ -56,6 +56,7 @@
   classroom cards — without login.
 - md= harvest + referer handling: in-course (needs a member session to
   exercise end-to-end).
+
 ## Credential handling (the segmented store)
 
 Never paste cookies into the command line. Use the store:

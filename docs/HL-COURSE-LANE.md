@@ -1,10 +1,10 @@
 # HighLevel course lane — the API pre-pass (`hl_course.py`)
 
 Read-only HighLevel **Courses API v3** pre-pass that builds a complete,
-correctly-ordered `course-map.json` *before* any member-portal crawl.
+correctly-ordered `course-map.json` _before_ any member-portal crawl.
 Rationale (dossier §5.10): HL's tree (products → categories → lessons, with
 `sequenceNo` and visibility/lock state) is fully API-readable even though
-lesson *content* is not — so the ingest dir carries a complete map even when
+lesson _content_ is not — so the ingest dir carries a complete map even when
 the cookie crawl later recovers only partial content.
 
 Source study: `~/.viiy-hq/.../HL-MEMBERSHIP-COURSE-UX-STUDY-2026-10-06.md`
@@ -24,15 +24,25 @@ python3 hl_course.py map PRODUCT_ID --location-id LOCATION_ID [--out-dir DIR]
 ```json
 {
   "schema": "course-map/highlevel-v1",
-  "product": {"id": "...", "title": "...", "libraryOrder": 1},
+  "product": { "id": "...", "title": "...", "libraryOrder": 1 },
   "categories": [
-    {"id": "...", "title": "Module 1", "lessons": [
-      {"id": "...", "sequenceNo": 1, "visibility": "locked",
-       "contentType": "video", "lockedByPost": null,
-       "lockedByCategory": "...", "drip": null}
-    ]}
+    {
+      "id": "...",
+      "title": "Module 1",
+      "lessons": [
+        {
+          "id": "...",
+          "sequenceNo": 1,
+          "visibility": "locked",
+          "contentType": "video",
+          "lockedByPost": null,
+          "lockedByCategory": "...",
+          "drip": null
+        }
+      ]
+    }
   ],
-  "totals": {"categories": 2, "lessons": 3, "published": 1, "draft": 1, "locked": 1}
+  "totals": { "categories": 2, "lessons": 3, "published": 1, "draft": 1, "locked": 1 }
 }
 ```
 
@@ -73,11 +83,11 @@ lands, `list`/`map` exit honestly (`not authorized`) rather than pretending.
 All requests: `Authorization: Bearer <token>`, **`Version: v3`** header,
 `locationId` query param, host `https://services.leadconnectorhq.com`.
 
-| Call | Purpose |
-|---|---|
-| `GET /courses/products?locationId=&limit=&cursor=` | discover products (limit 1–50, `nextCursor` pagination) |
-| `GET /courses/products/:productId` | the course object |
-| `GET /courses/products/:productId/categories?locationId=` | modules |
+| Call                                                               | Purpose                                                                                                                           |
+| ------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /courses/products?locationId=&limit=&cursor=`                 | discover products (limit 1–50, `nextCursor` pagination)                                                                           |
+| `GET /courses/products/:productId`                                 | the course object                                                                                                                 |
+| `GET /courses/products/:productId/categories?locationId=`          | modules                                                                                                                           |
 | `GET /courses/products/:productId/lessons?categoryId=&locationId=` | lessons, **always category-scoped** — the no-`categoryId` variant does N+1 internal membership reads (docs warning, dossier §1.2) |
 
 Rate limit: **80 req/min** per location — a client-side sliding-window
@@ -93,7 +103,7 @@ NOT readable (the hard boundary):
 
 - lesson bodies / HTML
 - video URLs (v3 has only `contentId`; `bucketVideoUrl` exists on the v2
-  import *write* shape only)
+  import _write_ shape only)
 - member emails in enrollments; login tokens ("never returned")
 - drip day-counts — a UI setting; no v3 endpoint documents a drip field.
   `course-map.json` emits `"drip": null` with a `drip_note` so downstream
@@ -110,7 +120,7 @@ The API pre-pass is additive; the existing `course-dl.py` lane is untouched:
 2. Crawl the member portal with a logged-in cookie jar scoped to the portal
    domain (`creds.py init highlevel` + `import`) — magic-link or
    email/password login → session cookie → `course-dl.py` into the same
-   out-dir. This is the *only* path to lesson bodies, Cloudflare Stream
+   out-dir. This is the _only_ path to lesson bodies, Cloudflare Stream
    embeds (`highlevel` is already in `EMBED_HOSTS`), and `postMaterials`.
 3. Reconcile: diff crawled lesson URLs against API lesson ids/titles to
    detect misses (the pattern HL's own Kajabi-importer uses).

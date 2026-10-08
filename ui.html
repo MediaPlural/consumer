@@ -1,165 +1,350 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Consumer — knowledge browser</title>
-<style>
-:root { --bg:#0e0f13; --panel:#16181f; --ink:#e8eaf0; --accent:#7c5cff; --muted:#8b90a0; --xp:#38d39f; }
-* { box-sizing: border-box; }
-body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,sans-serif; background:var(--bg); color:var(--ink); }
-header { position:sticky; top:0; background:var(--panel); border-bottom:1px solid rgba(128,128,128,.25);
-         padding:.7rem 1rem; display:flex; gap:.6rem; align-items:center; flex-wrap:wrap; z-index:10; }
-h1 { font-size:1rem; margin:0 1rem 0 0; }
-h1 b { color:var(--accent); }
-#q { flex:1; min-width:220px; background:#0b0c10; color:var(--ink); border:1px solid rgba(128,128,128,.35);
-     border-radius:10px; padding:.55rem .8rem; font-size:.95rem; }
-button { background:var(--accent); color:#fff; border:none; border-radius:10px; padding:.55rem .9rem;
-         cursor:pointer; font-size:.85rem; font-weight:600; }
-button.ghost { background:transparent; border:1px solid var(--accent); color:var(--accent); }
-#mode { display:flex; gap:.3rem; }
-#mode button { background:transparent; color:var(--muted); padding:.35rem .6rem; font-size:.75rem;
-               border:1px solid transparent; border-radius:8px; }
-#mode button.on { color:var(--accent); border-color:var(--accent); }
-main { max-width:900px; margin:0 auto; padding:1rem 1rem 4rem; }
-.stats { color:var(--muted); font-size:.8rem; margin:.6rem 0 1rem; }
-.results, .cards { display:grid; gap:.8rem; }
-.result { background:var(--panel); border:1px solid rgba(128,128,128,.18); border-radius:12px; padding:.9rem 1.1rem; }
-.result .src { color:var(--muted); font-size:.75rem; }
-.result .score { color:var(--xp); font-size:.75rem; margin-left:.5rem; }
-.result .attr { color:var(--muted); font-size:.7rem; margin-top:.2rem; word-break:break-all; }
-.result .attr a { text-decoration:none; }
-.result .attr .tool { border:1px solid rgba(128,128,128,.35); border-radius:999px; padding:0 .4rem; }
-.result .text { margin-top:.35rem; font-size:.93rem; line-height:1.5; }
-.result mark { background:rgba(124,92,255,.35); color:var(--ink); border-radius:3px; padding:0 2px; }
-.card h3 { margin:.1rem 0 .3rem; font-size:.9rem; }
-.card .sub { color:var(--muted); font-size:.78rem; }
-.chips { display:flex; flex-wrap:wrap; gap:.3rem; margin:.4rem 0; }
-.chip { font-size:.72rem; background:rgba(124,92,255,.18); border-radius:999px; padding:.12rem .55rem; }
-.chip.b { background:rgba(56,211,159,.18); }
-#hint { color:var(--muted); font-size:.85rem; padding:2rem 0; text-align:center; }
-@media (max-width: 720px) {
-  header { padding:.6rem; gap:.5rem; }
-  #mode { order:3; width:100%; justify-content:space-between; }
-  #q { min-width:0; flex-basis:100%; order:2; }
-  header h1 { font-size:.9rem; flex-basis:auto; }
-  main { padding:.8rem .8rem 3rem; }
-}
-@media (max-width: 480px) {
-  header h1 { font-size:.8rem; }
-  button { padding:.5rem .7rem; font-size:.8rem; }
-}
-header, main, .result { max-width:100%; }
-.result { overflow-wrap:anywhere; }
-</style>
-</head>
-<body>
-<header>
-  <h1>🧠 <b>consumer</b> · knowledge browser</h1>
-  <div id="mode">
-    <button data-m="hybrid" class="on">hybrid</button>
-    <button data-m="search">keyword</button>
-    <button data-m="semantic">semantic</button>
-  </div>
-  <input id="q" placeholder="ask the corpus anything…" autofocus>
-  <button id="go">Search</button>
-  <button id="insights" class="ghost">Insights</button>
-</header>
-<main>
-  <div class="stats" id="stats"></div>
-  <div id="hint">Ask the corpus — keyword, semantic, or hybrid (both fused).<br>
-  Everything here came from whatever you pointed the consumer at.</div>
-  <div class="results" id="results"></div>
-</main>
-<script>
-let mode = "hybrid";
-const $ = id => document.getElementById(id);
-// XSS guard: corpus text and source names are untrusted (arbitrary file
-// paths/text). esc() neutralizes them before any innerHTML use.
-const esc = s => String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-
-async function stats() {
-  const r = await fetch("/maths").then(r => r.json());
-  $("stats").textContent = `${r.sources} sources · ${r.chunks} chunks · ${r.concepts} concepts · ${r.bridges} bridges · ${r.words_total.toLocaleString()} words`;
-}
-
-function render(rows, kind) {
-  $("hint").style.display = "none";
-  $("results").innerHTML = "";
-  rows.forEach(r => {
-    const div = document.createElement("div");
-    div.className = "result";
-    const src = document.createElement("div");
-    src.innerHTML = "";
-    const s1 = document.createElement("span"); s1.className = "src"; s1.textContent = r.source || "";
-    src.appendChild(s1);
-    if (r.score != null) { const s2 = document.createElement("span"); s2.className = "score"; s2.textContent = r.score; src.appendChild(s2); }
-    // ATTRIBUTION: every result shows where the knowledge came from —
-    // url (linked), acquisition tool, timestamp. Naturally inbuilt.
-    const at = r.attribution;
-    if (at && (at.url || at.tool)) {
-      const av = document.createElement("div"); av.className = "attr";
-      const bits = [];
-      if (at.url) bits.push(`<a href="${esc(at.url)}" target="_blank" rel="noopener">${esc(at.url)}</a>`);
-      if (at.tool) bits.push(`<span class="tool">${esc(at.tool)}</span>`);
-      if (at.acquired_at) bits.push(esc(String(at.acquired_at).slice(0, 16)));
-      av.innerHTML = bits.join(" · ");
-      div.appendChild(av);
-    }
-    const tx = document.createElement("div"); tx.className = "text";
-    // snippet markers [term] -> <mark>: split on them, keep the bracket text
-    const parts = String(r.text || "").split(/(\[[^\]]{1,60}\])/);
-    parts.forEach(part => {
-      if (part.length > 2 && part.startsWith("[") && part.endsWith("]")) {
-        const m = document.createElement("mark"); m.textContent = part.slice(1, -1); tx.appendChild(m);
-      } else {
-        tx.appendChild(document.createTextNode(part));
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Consumer — knowledge browser</title>
+    <style>
+      :root {
+        --bg: #0e0f13;
+        --panel: #16181f;
+        --ink: #e8eaf0;
+        --accent: #7c5cff;
+        --muted: #8b90a0;
+        --xp: #38d39f;
       }
-    });
-    div.appendChild(src); div.appendChild(tx);
-    $("results").appendChild(div);
-  });
-  if (!rows.length) $("hint").style.display = "block";
-}
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        font-family: -apple-system, "Segoe UI", Roboto, sans-serif;
+        background: var(--bg);
+        color: var(--ink);
+      }
+      header {
+        position: sticky;
+        top: 0;
+        background: var(--panel);
+        border-bottom: 1px solid rgba(128, 128, 128, 0.25);
+        padding: 0.7rem 1rem;
+        display: flex;
+        gap: 0.6rem;
+        align-items: center;
+        flex-wrap: wrap;
+        z-index: 10;
+      }
+      h1 {
+        font-size: 1rem;
+        margin: 0 1rem 0 0;
+      }
+      h1 b {
+        color: var(--accent);
+      }
+      #q {
+        flex: 1;
+        min-width: 220px;
+        background: #0b0c10;
+        color: var(--ink);
+        border: 1px solid rgba(128, 128, 128, 0.35);
+        border-radius: 10px;
+        padding: 0.55rem 0.8rem;
+        font-size: 0.95rem;
+      }
+      button {
+        background: var(--accent);
+        color: #fff;
+        border: none;
+        border-radius: 10px;
+        padding: 0.55rem 0.9rem;
+        cursor: pointer;
+        font-size: 0.85rem;
+        font-weight: 600;
+      }
+      button.ghost {
+        background: transparent;
+        border: 1px solid var(--accent);
+        color: var(--accent);
+      }
+      #mode {
+        display: flex;
+        gap: 0.3rem;
+      }
+      #mode button {
+        background: transparent;
+        color: var(--muted);
+        padding: 0.35rem 0.6rem;
+        font-size: 0.75rem;
+        border: 1px solid transparent;
+        border-radius: 8px;
+      }
+      #mode button.on {
+        color: var(--accent);
+        border-color: var(--accent);
+      }
+      main {
+        max-width: 900px;
+        margin: 0 auto;
+        padding: 1rem 1rem 4rem;
+      }
+      .stats {
+        color: var(--muted);
+        font-size: 0.8rem;
+        margin: 0.6rem 0 1rem;
+      }
+      .results,
+      .cards {
+        display: grid;
+        gap: 0.8rem;
+      }
+      .result {
+        background: var(--panel);
+        border: 1px solid rgba(128, 128, 128, 0.18);
+        border-radius: 12px;
+        padding: 0.9rem 1.1rem;
+      }
+      .result .src {
+        color: var(--muted);
+        font-size: 0.75rem;
+      }
+      .result .score {
+        color: var(--xp);
+        font-size: 0.75rem;
+        margin-left: 0.5rem;
+      }
+      .result .attr {
+        color: var(--muted);
+        font-size: 0.7rem;
+        margin-top: 0.2rem;
+        word-break: break-all;
+      }
+      .result .attr a {
+        text-decoration: none;
+      }
+      .result .attr .tool {
+        border: 1px solid rgba(128, 128, 128, 0.35);
+        border-radius: 999px;
+        padding: 0 0.4rem;
+      }
+      .result .text {
+        margin-top: 0.35rem;
+        font-size: 0.93rem;
+        line-height: 1.5;
+      }
+      .result mark {
+        background: rgba(124, 92, 255, 0.35);
+        color: var(--ink);
+        border-radius: 3px;
+        padding: 0 2px;
+      }
+      .card h3 {
+        margin: 0.1rem 0 0.3rem;
+        font-size: 0.9rem;
+      }
+      .card .sub {
+        color: var(--muted);
+        font-size: 0.78rem;
+      }
+      .chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.3rem;
+        margin: 0.4rem 0;
+      }
+      .chip {
+        font-size: 0.72rem;
+        background: rgba(124, 92, 255, 0.18);
+        border-radius: 999px;
+        padding: 0.12rem 0.55rem;
+      }
+      .chip.b {
+        background: rgba(56, 211, 159, 0.18);
+      }
+      #hint {
+        color: var(--muted);
+        font-size: 0.85rem;
+        padding: 2rem 0;
+        text-align: center;
+      }
+      @media (max-width: 720px) {
+        header {
+          padding: 0.6rem;
+          gap: 0.5rem;
+        }
+        #mode {
+          order: 3;
+          width: 100%;
+          justify-content: space-between;
+        }
+        #q {
+          min-width: 0;
+          flex-basis: 100%;
+          order: 2;
+        }
+        header h1 {
+          font-size: 0.9rem;
+          flex-basis: auto;
+        }
+        main {
+          padding: 0.8rem 0.8rem 3rem;
+        }
+      }
+      @media (max-width: 480px) {
+        header h1 {
+          font-size: 0.8rem;
+        }
+        button {
+          padding: 0.5rem 0.7rem;
+          font-size: 0.8rem;
+        }
+      }
+      header,
+      main,
+      .result {
+        max-width: 100%;
+      }
+      .result {
+        overflow-wrap: anywhere;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>🧠 <b>consumer</b> · knowledge browser</h1>
+      <div id="mode">
+        <button data-m="hybrid" class="on">hybrid</button>
+        <button data-m="search">keyword</button>
+        <button data-m="semantic">semantic</button>
+      </div>
+      <input id="q" placeholder="ask the corpus anything…" autofocus />
+      <button id="go">Search</button>
+      <button id="insights" class="ghost">Insights</button>
+    </header>
+    <main>
+      <div class="stats" id="stats"></div>
+      <div id="hint">
+        Ask the corpus — keyword, semantic, or hybrid (both fused).<br />
+        Everything here came from whatever you pointed the consumer at.
+      </div>
+      <div class="results" id="results"></div>
+    </main>
+    <script>
+      let mode = "hybrid";
+      const $ = (id) => document.getElementById(id);
+      // XSS guard: corpus text and source names are untrusted (arbitrary file
+      // paths/text). esc() neutralizes them before any innerHTML use.
+      const esc = (s) =>
+        String(s).replace(
+          /[&<>"']/g,
+          (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c],
+        );
 
-async function run() {
-  const q = $("q").value.trim();
-  if (!q) return;
-  const r = await fetch(`/${mode}?q=${encodeURIComponent(q)}&limit=12`).then(r => r.json());
-  render(r);
-}
+      async function stats() {
+        const r = await fetch("/maths").then((r) => r.json());
+        $("stats").textContent =
+          `${r.sources} sources · ${r.chunks} chunks · ${r.concepts} concepts · ${r.bridges} bridges · ${r.words_total.toLocaleString()} words`;
+      }
 
-async function insights() {
-  const r = await fetch("/insight?bridges=12").then(r => r.json());
-  $("hint").style.display = "none";
-  $("results").innerHTML = "";
-  const wrap = document.createElement("div");
-  wrap.className = "cards";
-  const b = document.createElement("div"); b.className = "result card";
-  b.innerHTML = `<h3>Bridges — concepts spanning sources (the discovery surface)</h3>
-    <div class="chips">${r.bridge_concepts.map(x => `<span class="chip b">${esc(x.concept)} · ${esc(x.coverage)}</span>`).join("")}</div>`;
-  wrap.appendChild(b);
-  const p = document.createElement("div"); p.className = "result card";
-  p.innerHTML = `<h3>Strongest concept pairs</h3>
-    <div class="chips">${r.strongest_pairs.map(x => `<span class="chip">${esc(x.a)} + ${esc(x.b)} (${x.co}×)</span>`).join("")}</div>`;
-  wrap.appendChild(p);
-  const rich = document.createElement("div"); rich.className = "result card";
-  rich.innerHTML = `<h3>Per-source concept richness</h3>
-    <div class="sub">${r.concept_richness.map(x => `${esc(x.source)}: ${x.distinct_concepts}`).join(" · ")}</div>`;
-  wrap.appendChild(rich);
-  $("results").appendChild(wrap);
-}
+      function render(rows, kind) {
+        $("hint").style.display = "none";
+        $("results").innerHTML = "";
+        rows.forEach((r) => {
+          const div = document.createElement("div");
+          div.className = "result";
+          const src = document.createElement("div");
+          src.innerHTML = "";
+          const s1 = document.createElement("span");
+          s1.className = "src";
+          s1.textContent = r.source || "";
+          src.appendChild(s1);
+          if (r.score != null) {
+            const s2 = document.createElement("span");
+            s2.className = "score";
+            s2.textContent = r.score;
+            src.appendChild(s2);
+          }
+          // ATTRIBUTION: every result shows where the knowledge came from —
+          // url (linked), acquisition tool, timestamp. Naturally inbuilt.
+          const at = r.attribution;
+          if (at && (at.url || at.tool)) {
+            const av = document.createElement("div");
+            av.className = "attr";
+            const bits = [];
+            if (at.url)
+              bits.push(
+                `<a href="${esc(at.url)}" target="_blank" rel="noopener">${esc(at.url)}</a>`,
+              );
+            if (at.tool) bits.push(`<span class="tool">${esc(at.tool)}</span>`);
+            if (at.acquired_at) bits.push(esc(String(at.acquired_at).slice(0, 16)));
+            av.innerHTML = bits.join(" · ");
+            div.appendChild(av);
+          }
+          const tx = document.createElement("div");
+          tx.className = "text";
+          // snippet markers [term] -> <mark>: split on them, keep the bracket text
+          const parts = String(r.text || "").split(/(\[[^\]]{1,60}\])/);
+          parts.forEach((part) => {
+            if (part.length > 2 && part.startsWith("[") && part.endsWith("]")) {
+              const m = document.createElement("mark");
+              m.textContent = part.slice(1, -1);
+              tx.appendChild(m);
+            } else {
+              tx.appendChild(document.createTextNode(part));
+            }
+          });
+          div.appendChild(src);
+          div.appendChild(tx);
+          $("results").appendChild(div);
+        });
+        if (!rows.length) $("hint").style.display = "block";
+      }
 
-$("go").onclick = run;
-$("q").addEventListener("keydown", e => { if (e.key === "Enter") run(); });
-$("insights").onclick = insights;
-document.querySelectorAll("#mode button").forEach(btn => btn.onclick = () => {
-  mode = btn.dataset.m;
-  document.querySelectorAll("#mode button").forEach(b => b.classList.remove("on"));
-  btn.classList.add("on");
-  if ($("q").value.trim()) run();
-});
-stats();
-</script>
-</body>
+      async function run() {
+        const q = $("q").value.trim();
+        if (!q) return;
+        const r = await fetch(`/${mode}?q=${encodeURIComponent(q)}&limit=12`).then((r) => r.json());
+        render(r);
+      }
+
+      async function insights() {
+        const r = await fetch("/insight?bridges=12").then((r) => r.json());
+        $("hint").style.display = "none";
+        $("results").innerHTML = "";
+        const wrap = document.createElement("div");
+        wrap.className = "cards";
+        const b = document.createElement("div");
+        b.className = "result card";
+        b.innerHTML = `<h3>Bridges — concepts spanning sources (the discovery surface)</h3>
+    <div class="chips">${r.bridge_concepts.map((x) => `<span class="chip b">${esc(x.concept)} · ${esc(x.coverage)}</span>`).join("")}</div>`;
+        wrap.appendChild(b);
+        const p = document.createElement("div");
+        p.className = "result card";
+        p.innerHTML = `<h3>Strongest concept pairs</h3>
+    <div class="chips">${r.strongest_pairs.map((x) => `<span class="chip">${esc(x.a)} + ${esc(x.b)} (${x.co}×)</span>`).join("")}</div>`;
+        wrap.appendChild(p);
+        const rich = document.createElement("div");
+        rich.className = "result card";
+        rich.innerHTML = `<h3>Per-source concept richness</h3>
+    <div class="sub">${r.concept_richness.map((x) => `${esc(x.source)}: ${x.distinct_concepts}`).join(" · ")}</div>`;
+        wrap.appendChild(rich);
+        $("results").appendChild(wrap);
+      }
+
+      $("go").onclick = run;
+      $("q").addEventListener("keydown", (e) => {
+        if (e.key === "Enter") run();
+      });
+      $("insights").onclick = insights;
+      document.querySelectorAll("#mode button").forEach(
+        (btn) =>
+          (btn.onclick = () => {
+            mode = btn.dataset.m;
+            document.querySelectorAll("#mode button").forEach((b) => b.classList.remove("on"));
+            btn.classList.add("on");
+            if ($("q").value.trim()) run();
+          }),
+      );
+      stats();
+    </script>
+  </body>
 </html>

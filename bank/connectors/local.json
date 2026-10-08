@@ -3,9 +3,7 @@
   "display_name": "Local macOS QoL (open / clipboard / notify)",
   "status": "stable",
   "auth_method": "none",
-  "capabilities": [
-    "act"
-  ],
+  "capabilities": ["act"],
   "notes": "Safe local actions on this box: open a URL in the default browser, copy text to the clipboard, send a macOS notification. All run through the SAFE runner as literal argv — no shell=True, clipboard text travels via pbcopy stdin, notification text via oscript argv (never string-interpolated into the script source).",
   "actions": [
     {

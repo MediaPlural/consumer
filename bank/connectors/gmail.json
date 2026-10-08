@@ -4,9 +4,7 @@
   "status": "stable",
   "auth_method": "ortie",
   "ortie_account": "adhacks",
-  "capabilities": [
-    "read"
-  ],
+  "capabilities": ["read"],
   "consume": {
     "description": "email archive -> attributed graph",
     "command": "python3 {here}/connectors.py export gmail --out ./bank-out/gmail --db {db}"

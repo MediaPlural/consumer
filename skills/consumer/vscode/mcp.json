@@ -3,9 +3,7 @@
     "consumer-mcp": {
       "type": "stdio",
       "command": "python3",
-      "args": [
-        "${CONSUMER_HOME}/mcp-server.py"
-      ],
+      "args": ["${CONSUMER_HOME}/mcp-server.py"],
       "env": {
         "CONSUMER_GRAPH_DB": "/Users/sharpe/consumer-out/consumer.sqlite3"
       }
