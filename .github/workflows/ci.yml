@@ -1,0 +1,39 @@
+name: CI
+
+# Stdlib-only by design. Running the suite across several Python versions is the
+# cheapest possible proof of that claim — and of the estate's platform-agnostic
+# law: a solution must survive an account/platform swap, not just the machine it
+# was written on.
+#
+# Injection note (reviewed, no action needed): this workflow interpolates no
+# untrusted input. The only `${{ }}` expression is `matrix.python-version`, whose
+# values are the literal list defined below in this same file — not issue bodies,
+# PR titles, commit messages, or any attacker-settable event field. No `run:`
+# step consumes an event payload.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: tests (python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.9", "3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Test suite (stdlib unittest, no network, no model download)
+        run: python -m unittest discover -s tests -v
+
+      - name: Syntax check every module
+        run: python -m compileall -q . -x '(^|/)(\.git|__pycache__)/'
